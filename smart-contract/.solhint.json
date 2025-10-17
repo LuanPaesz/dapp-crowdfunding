@@ -1,0 +1,12 @@
+{
+  "extends": ["solhint:recommended", "plugin:openzeppelin/recommended"],
+  "plugins": ["openzeppelin"],
+  "rules": {
+    "compiler-version": ["error", "^0.8.20"],
+    "func-visibility": ["error", { "ignoreConstructors": true }],
+    "no-unused-vars": "warn",
+    "private-vars-leading-underscore": "off",
+    "avoid-low-level-calls": "warn",
+    "max-line-length": ["warn", 140]
+  }
+}

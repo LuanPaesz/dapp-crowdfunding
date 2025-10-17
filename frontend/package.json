@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml 'src/**/*.{ts,tsx}'"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.8",
@@ -28,13 +30,15 @@
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.36.0",
+    "eslint-formatter-checkstyle": "^0.1.2",
+    "@typescript-eslint/parser": "^8.45.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.45.0",
     "vite": "^7.1.7"
   }
 }
