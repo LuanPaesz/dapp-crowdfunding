@@ -1,0 +1,6 @@
+/* Tailwind v4 - CSS de entrada */
+@import "tailwindcss";
+
+/* utilitários simples usados na UI */
+.input { @apply w-full border rounded-xl px-3 py-2; }
+.btn   { @apply border rounded-xl px-3 py-2 hover:bg-gray-100; }

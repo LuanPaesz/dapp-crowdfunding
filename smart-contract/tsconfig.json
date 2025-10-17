@@ -1,0 +1,22 @@
+/* Based on https://github.com/tsconfig/bases/blob/501da2bcd640cf95c95805783e1012b992338f28/bases/node22.json */
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node", "hardhat"],
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "hardhat.config.ts",
+    "scripts",
+    "test",
+    "typechain-types"
+  ],
+  "exclude": ["node_modules", "artifacts", "cache"]
+}
+
+
+
+
