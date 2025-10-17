@@ -23,11 +23,10 @@
     "dotenv": "^17.2.3",
     "ethers": "^6.15.0",
     "hardhat": "^3.0.7",
+    "solhint": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "viem": "^2.38.0",
-    "solhint": "^3.6.2",
-    "solhint-plugin-openzeppelin": "^3.0.1"
+    "viem": "^2.38.0"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",
