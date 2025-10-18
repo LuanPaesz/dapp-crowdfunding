@@ -40,7 +40,8 @@ pipeline {
               recordIssues(
                 id: 'eslint',
                 enabledForFailure: true,
-                tool: checkStyle(pattern: 'frontend/reports/eslint.xml')
+                tool: checkStyle(pattern: 'frontend/reports/eslint.xml'),
+                publishChecks: false
               )
             } else {
               echo 'ESLint report not found (frontend/reports/eslint.xml) — skipping.'
@@ -51,7 +52,8 @@ pipeline {
               recordIssues(
                 id: 'solhint',
                 enabledForFailure: true,
-                tool: checkStyle(pattern: 'smart-contract/reports/solhint.xml')
+                tool: checkStyle(pattern: 'smart-contract/reports/solhint.xml'),
+                publishChecks: false
               )
             } else {
               echo 'Solhint report not found (smart-contract/reports/solhint.xml) — skipping.'
@@ -73,7 +75,19 @@ pipeline {
       }
       post {
         always {
-          junit allowEmptyResults: true, testResults: 'smart-contract/reports/*.xml'
+          script {
+            // Publica JUnit apenas se houver relatórios
+            def hasReports = fileExists('smart-contract/reports') &&
+                             sh(returnStatus: true, script: "ls smart-contract/reports/*.xml 1>/dev/null 2>&1") == 0
+
+            if (hasReports) {
+              junit testResults: 'smart-contract/reports/*.xml',
+                    allowEmptyResults: true,
+                    skipPublishingChecks: true
+            } else {
+              echo 'No JUnit XML found (smart-contract/reports/*.xml) — skipping publisher.'
+            }
+          }
         }
       }
     }
