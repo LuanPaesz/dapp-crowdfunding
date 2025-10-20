@@ -3,7 +3,7 @@ pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-contract Crowdfund is ReentrancyGuard {
+contract Crowdfunding is ReentrancyGuard {
     struct Campaign {
         address owner;
         string title;
@@ -61,7 +61,7 @@ contract Crowdfund is ReentrancyGuard {
 
     function contribute(uint256 _id) external payable campaignExists(_id) nonReentrant {
         Campaign storage c = campaigns[_id];
-        require(!c.withdrawn, "Already withdrawn");         
+        require(!c.withdrawn, "Already withdrawn");
         require(block.timestamp < c.deadline, "Campaign ended");
         require(msg.value > 0, "No value");
 
@@ -73,7 +73,6 @@ contract Crowdfund is ReentrancyGuard {
 
     function withdraw(uint256 _id) external campaignExists(_id) onlyOwner(_id) nonReentrant {
         Campaign storage c = campaigns[_id];
-        // libera se (atingiu meta) OU (acabou o prazo e já atingiu meta)
         require(block.timestamp >= c.deadline || c.totalRaised >= c.goal, "Not releasable yet");
         require(c.totalRaised >= c.goal, "Goal not reached");
         require(!c.withdrawn, "Already withdrawn");

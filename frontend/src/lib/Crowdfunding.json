@@ -1,7 +1,8 @@
 {
+  
   "_format": "hh3-artifact-1",
-  "contractName": "Crowdfund",
-  "sourceName": "contracts/Crowdfund.sol",
+  "contractName": "Crowdfunding",
+  "sourceName": "contracts/Crowdfunding.sol",
   "abi": [
     {
       "inputs": [],
@@ -370,6 +371,6 @@
   "linkReferences": {},
   "deployedLinkReferences": {},
   "immutableReferences": {},
-  "inputSourceName": "project/contracts/Crowdfund.sol",
+  "inputSourceName": "project/contracts/Crowdfunding.sol",
   "buildInfoId": "solc-0_8_28-b86c29f6f848d0be9b23a40e377d6619e01611c0"
 }

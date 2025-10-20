@@ -5,13 +5,13 @@ import hre from "hardhat";
 const ethers = (hre as any).ethers; // <- ignora a tipagem e usa o objeto real em runtime
 
 
-describe("Crowdfund (ethers)", () => {
+describe("Crowdfunding (ethers)", () => {
   let crowdfund: any;
   let owner: any, user1: any, user2: any;
 
   beforeEach(async () => {
     [owner, user1, user2] = await ethers.getSigners();
-    const F = await ethers.getContractFactory("Crowdfund");
+    const F = await ethers.getContractFactory("Crowdfunding");
     crowdfund = await F.deploy();
     await crowdfund.waitForDeployment();
   });

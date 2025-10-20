@@ -1,6 +1,5 @@
 {
-  "extends": ["solhint:recommended", "plugin:openzeppelin/recommended"],
-  "plugins": ["openzeppelin"],
+  "extends": ["solhint:recommended"],
   "rules": {
     "compiler-version": ["error", "^0.8.20"],
     "func-visibility": ["error", { "ignoreConstructors": true }],
