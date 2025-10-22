@@ -1,17 +1,11 @@
 const hre = require("hardhat");
 
 async function main() {
-  console.log("📦 Deploying Crowdfunding...");
-
-  const F = await ethers.getContractFactory("Crowdfunding");
-  const crowdfunding = await F.deploy();
-
-  await crowdfunding.waitForDeployment();
-
-  console.log(`✅ Crowdfunding deployed to: ${crowdfunding.target}`);
+  // Troque pelo NOME exato do seu contrato
+  const Factory = await hre.ethers.getContractFactory("CrowdFunding");
+  const contract = await Factory.deploy();
+  await contract.waitForDeployment();
+  console.log("CrowdFunding deployed to:", await contract.getAddress());
 }
 
-main().catch((error) => {
-  console.error("❌ Deploy failed:", error);
-  process.exitCode = 1;
-});
+main().catch((e) => { console.error(e); process.exitCode = 1; });

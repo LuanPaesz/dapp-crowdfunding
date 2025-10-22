@@ -1,17 +1,20 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "types": ["node", "hardhat"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["node", "mocha"]
   },
   "include": [
-    "hardhat.config.ts",
-    "scripts",
-    "test",
-    "typechain-types"
-  ],
-  "exclude": ["node_modules", "artifacts", "cache"]
+    "./contracts",
+    "./scripts",
+    "./test",
+    "./ignition",
+    "./typechain-types",
+    "./hardhat.config.cjs"
+  ]
 }
