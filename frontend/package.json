@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml \"src/**/*.{ts,tsx}\""
+    "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml \"src/**/*.{ts,tsx}\"",
+    "lint:css": "stylelint \"frontend/src/**/*.css\" --allow-empty-input"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.8",
@@ -22,21 +23,25 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
-    "@tailwindcss/vite": "^4.1.14",
+    "@tailwindcss/postcss": "^4.1.15",
     "@types/node": "^24.6.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.45.0",
+    "@typescript-eslint/parser": "^8.45.0",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "eslint": "^9.36.0",
-    "@typescript-eslint/parser": "^8.45.0",
-    "@typescript-eslint/eslint-plugin": "^8.45.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
     "postcss": "^8.5.6",
-    "tailwindcss": "^4.1.14",
-    "typescript": "~5.9.3",
+    "stylelint": "^16.25.0",
+    "stylelint-config-recommended": "^17.0.0",
+    "stylelint-config-standard": "^39.0.1",
+    "stylelint-config-tailwindcss": "^1.0.0",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.9.3",
     "vite": "^7.1.7"
   }
 }

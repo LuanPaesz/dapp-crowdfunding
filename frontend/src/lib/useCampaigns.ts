@@ -1,10 +1,10 @@
-import { useMemo } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./contract";
+import type { Abi } from "abitype";
 
-export type UICampaign = {
-  id: bigint;
-  owner: string;
+export type CampaignData = {
+  id: number;
+  owner: `0x${string}`;
   title: string;
   description: string;
   goal: bigint;
@@ -15,52 +15,72 @@ export type UICampaign = {
 };
 
 export function useCampaigns() {
-  // lê o contador
-  const { data: nextId } = useReadContract({
+  // 1. pega contador global
+  const {
+    data: nextIdRaw,
+    isLoading: loadingCount,
+    error: countError,
+  } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "nextId",
-    query: { refetchInterval: 1500 },
-  }) as { data?: bigint };
-
-  const ids = useMemo(
-    () => Array.from({ length: Number(nextId ?? 0n) }, (_, i) => BigInt(i)),
-    [nextId]
-  );
-
-  // lê todas as campanhas em lote
-  const { data: results, isLoading } = useReadContracts({
-    allowFailure: true,
-    contracts: ids.map((id) => ({
-      address: CROWDFUND_ADDRESS,
-      abi: CROWDFUND_ABI,
-      functionName: "getCampaign",
-      args: [id],
-    })),
-    // revalida periodicamente
-    query: { refetchInterval: 2000 },
   });
 
-  const campaigns: UICampaign[] = useMemo(() => {
-    if (!results) return [];
-    return results
-      .map((r, i) => ({ r, id: ids[i] }))
-      .filter(({ r }) => r && r.status === "success" && Array.isArray(r.result))
-      .map(({ r, id }) => {
-        const arr = r!.result as readonly unknown[];
-        return {
-          id,
-          owner: arr[0] as string,
-          title: arr[1] as string,
-          description: arr[2] as string,
-          goal: arr[3] as bigint,
-          deadline: arr[4] as bigint,
-          totalRaised: arr[5] as bigint,
-          withdrawn: arr[6] as boolean,
-          exists: arr[7] as boolean,
-        };
-      });
-  }, [results, ids]);
+  const nextId = Number(nextIdRaw ?? 0n);
 
-  return { campaigns, isLoading, count: ids.length };
+  // 2. se não tem campanha, devolve vazio
+  if (nextId === 0) {
+    return {
+      campaigns: [] as CampaignData[],
+      isLoading: loadingCount,
+      error: countError,
+    };
+  }
+
+  // 3. monta as chamadas getCampaign(id) para cada id
+  const calls = Array.from({ length: nextId }, (_, id) => ({
+    address: CROWDFUND_ADDRESS,
+    abi: CROWDFUND_ABI as unknown as Abi,
+    functionName: "getCampaign" as const,
+    args: [BigInt(id)],
+  }));
+
+  // 4. chama multicall
+  const {
+    data: results,
+    isLoading: loadingCampaigns,
+    error: campaignsError,
+  } = useReadContracts({
+    contracts: calls,
+    allowFailure: true,
+  });
+
+  // 5. converte o resultado bruto em uma lista de campanhas válidas
+  const campaigns: CampaignData[] =
+    results
+      ?.map((callResult, idx) => {
+        if (callResult.status !== "success") return null;
+
+        const c = callResult.result as any;
+        if (!c || !c.exists) return null;
+
+        return {
+          id: idx,
+          owner: c.owner,
+          title: c.title,
+          description: c.description,
+          goal: c.goal,
+          deadline: c.deadline,
+          totalRaised: c.totalRaised,
+          withdrawn: c.withdrawn,
+          exists: c.exists,
+        } satisfies CampaignData;
+      })
+      .filter(Boolean) as CampaignData[] ?? [];
+
+  return {
+    campaigns,
+    isLoading: loadingCount || loadingCampaigns,
+    error: countError || campaignsError,
+  };
 }

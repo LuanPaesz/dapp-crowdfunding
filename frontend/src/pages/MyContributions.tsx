@@ -1,9 +1,14 @@
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
-import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
-import { fmtEth } from "../lib/format";
+import { CROWDFUND_ADDRESS } from "../lib/contract";
+import { formatEther, Abi } from "viem";
+import { CROWDFUND_ABI as RAW_CROWDFUND_ABI } from "../lib/contract";
+
+// Ensure ABI is typed as Abi
+const CROWDFUND_ABI: Abi = RAW_CROWDFUND_ABI as Abi;
 
 export default function MyContributions() {
   const { address } = useAccount();
+  if (!address) return <p>Connect your wallet.</p>;
 
   const { data: nextId } = useReadContract({
     address: CROWDFUND_ADDRESS,
@@ -12,23 +17,31 @@ export default function MyContributions() {
     query: { refetchInterval: 1500 },
   }) as { data?: bigint };
 
-  if (!address) return <p>Connect your wallet.</p>;
   const count = Number(nextId ?? 0n);
-  if (count === 0) return <p className="text-white/60">You haven't contributed yet (no campaigns exist).</p>;
-
   const calls = Array.from({ length: count }, (_, i) => ({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
-    functionName: "contributions" as const,
+    functionName: "contributions",
     args: [BigInt(i), address as `0x${string}`],
-  }));
+  })) as readonly {
+    address: `0x${string}`;
+    abi: Abi;
+    functionName: string;
+    args: readonly unknown[];
+  }[];
 
-  const { data } = useReadContracts({ contracts: calls, query: { refetchInterval: 1500 } });
+  const { data } = useReadContracts({
+    contracts: calls,
+    query: { refetchInterval: 1500 },
+  });
 
-  const rows = (data ?? []).map((r, i) => {
-    const v = (r?.result as bigint) ?? 0n;
-    return { id: i, value: v };
-  }).filter(r => r.value > 0n);
+  const rows =
+    (data ?? [])
+      .map((r, i) => {
+        const v = (r?.result as bigint) ?? 0n;
+        return { id: i, value: v };
+      })
+      .filter((r) => r.value > 0n) ?? [];
 
   if (rows.length === 0) return <p className="text-white/60">You haven't contributed yet.</p>;
 
@@ -43,10 +56,10 @@ export default function MyContributions() {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
+          {rows.map((r) => (
             <tr key={r.id} className="bg-white/5">
               <td className="p-3 rounded-l-xl">#{r.id}</td>
-              <td className="p-3 rounded-r-xl">{fmtEth(r.value)} ETH</td>
+              <td className="p-3 rounded-r-xl">{Number(formatEther(r.value)).toFixed(6)} ETH</td>
             </tr>
           ))}
         </tbody>
