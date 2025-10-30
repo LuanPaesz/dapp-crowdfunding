@@ -5,10 +5,11 @@ import { parseEther } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 export default function Create() {
+  // routing
   const location = useLocation();
   const navigate = useNavigate();
 
-  // wallet connection and contract writer
+  // wallet + writer
   const { address, isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
 
@@ -18,13 +19,16 @@ export default function Create() {
   const [goal, setGoal] = useState("0");
   const [durationDays, setDurationDays] = useState<number>(0);
 
-  // transaction feedback
+  // ui feedback
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // prefill fields from query params (used by CampaignEdit)
+  // detect "edit-like" flow via query params
+  const params = new URLSearchParams(location.search);
+  const isEditing = params.has("title") || params.has("goal") || params.has("deadline");
+
+  // prefill from query params
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
     const pTitle = params.get("title");
     const pDescription = params.get("description");
     const pGoal = params.get("goal");
@@ -43,9 +47,10 @@ export default function Create() {
         setDurationDays(days);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
-  // submit handler: calls createCampaign on smart contract
+  // submit writer
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
@@ -54,7 +59,6 @@ export default function Create() {
       setErrorMsg("Please connect your wallet first.");
       return;
     }
-
     if (!title.trim()) {
       setErrorMsg("Title is required.");
       return;
@@ -96,6 +100,7 @@ export default function Create() {
       setDescription("");
       setGoal("0");
       setDurationDays(0);
+      // optional: navigate("/mycampaigns");
     } catch (err: any) {
       setErrorMsg(err?.shortMessage || err?.message || "Transaction failed.");
     }
@@ -103,7 +108,9 @@ export default function Create() {
 
   return (
     <div className="max-w-2xl mx-auto bg-[#1a1a1a] border border-[#333] rounded-lg p-8 shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 text-white">Create Campaign</h2>
+      <h2 className="text-2xl font-bold mb-4 text-white">
+        {isEditing ? "Edit Campaign" : "Create Campaign"}
+      </h2>
 
       <form onSubmit={onSubmit} className="space-y-4 text-white">
         <div>
@@ -165,7 +172,7 @@ export default function Create() {
             disabled={isPending}
             className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50"
           >
-            {isPending ? "Creating..." : "Create"}
+            {isPending ? "Creating..." : isEditing ? "Save (Clone)" : "Create"}
           </button>
 
           <button
