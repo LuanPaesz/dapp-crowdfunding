@@ -1,8 +1,28 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAccount, useReadContract } from "wagmi";
+import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./lib/contract";
 
 export default function Navbar() {
-  const location = useLocation();
+  const { address } = useAccount();
+
+  // Admin from .env
+  const envAdmin =
+    import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase() ?? null;
+
+  // Admin from contract (if function exists)
+  const { data: contractAdmin } = useReadContract({
+    address: CROWDFUND_ADDRESS,
+    abi: CROWDFUND_ABI,
+    functionName: "admin",
+  }) as { data?: string };
+
+  const lowerAddr = address?.toLowerCase();
+  const onChainAdmin = contractAdmin?.toLowerCase();
+
+  const isAdmin =
+    !!lowerAddr &&
+    (lowerAddr === envAdmin || (onChainAdmin && lowerAddr === onChainAdmin));
 
   const items = [
     { to: "/create", label: "Create a Campaign" },
@@ -10,6 +30,8 @@ export default function Navbar() {
     { to: "/mycontributions", label: "My Contributions" },
     { to: "/mycampaigns", label: "My Campaigns" },
     { to: "/settings", label: "Settings" },
+    { to: "/audit", label: "Audit" },
+    ...(isAdmin ? [{ to: "/admin", label: "Admin" }] : []),
   ];
 
   return (
@@ -26,7 +48,7 @@ export default function Navbar() {
                 to={it.to}
                 className={({ isActive }) =>
                   `text-sm transition ${
-                    isActive || location.pathname === it.to
+                    isActive
                       ? "text-purple-400 font-semibold"
                       : "text-gray-300 hover:text-white"
                   }`

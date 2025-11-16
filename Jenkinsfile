@@ -1,7 +1,10 @@
 pipeline {
   agent any
 
-  tools { nodejs 'Node22' }
+  tools {
+    // Node.js installation configured em "Global Tool Configuration" com o nome Node22
+    nodejs 'Node22'
+  }
 
   options {
     timestamps()
@@ -9,15 +12,22 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Install deps') {
       steps {
         ansiColor('xterm') {
-          dir('smart-contract') { sh 'npm ci' }
-          dir('frontend')       { sh 'npm ci' }
+          dir('smart-contract') {
+            sh 'npm ci'
+          }
+          dir('frontend') {
+            sh 'npm ci'
+          }
         }
       }
     }
@@ -25,13 +35,19 @@ pipeline {
     stage('Lint & Typecheck') {
       steps {
         ansiColor('xterm') {
-          dir('smart-contract') { sh 'npm run lint:ci || true' }
+          // Solidity / Hardhat lint (Solhint) – não falha o build se der erro
+          dir('smart-contract') {
+            sh 'npm run lint:ci || true'
+          }
+
+          // Frontend typecheck + lint – não falha o build se der erro
           dir('frontend') {
             sh 'npm run typecheck || true'
             sh 'npm run lint:ci || true'
           }
         }
       }
+
       post {
         always {
           script {
@@ -67,23 +83,27 @@ pipeline {
       steps {
         ansiColor('xterm') {
           dir('smart-contract') {
+            // Compila e roda testes Hardhat
             sh 'npm run compile'
-            sh 'npm test || true'                // loga testes do hardhat
+            sh 'npm test || true'                // imprime log dos testes
             sh 'npm run test:node-junit || true' // gera JUnit XML em reports/
           }
         }
       }
+
       post {
         always {
           script {
-            // Publica JUnit apenas se houver relatórios
+            // Só publica JUnit se houver arquivos XML
             def hasReports = fileExists('smart-contract/reports') &&
                              sh(returnStatus: true, script: "ls smart-contract/reports/*.xml 1>/dev/null 2>&1") == 0
 
             if (hasReports) {
-              junit testResults: 'smart-contract/reports/*.xml',
-                    allowEmptyResults: true,
-                    skipPublishingChecks: true
+              junit(
+                testResults: 'smart-contract/reports/*.xml',
+                allowEmptyResults: true,
+                skipPublishingChecks: true
+              )
             } else {
               echo 'No JUnit XML found (smart-contract/reports/*.xml) — skipping publisher.'
             }
@@ -95,11 +115,17 @@ pipeline {
     stage('Frontend: Build') {
       steps {
         ansiColor('xterm') {
-          dir('frontend') { sh 'npm run build' }
+          dir('frontend') {
+            sh 'npm run build'
+            // se depois você criar testes de UI, pode adicionar:
+            // sh 'npm test || true'
+          }
         }
       }
+
       post {
         always {
+          // Arquiva artefatos do build para download no Jenkins
           archiveArtifacts artifacts: 'frontend/dist/**', fingerprint: true
         }
       }
@@ -107,7 +133,11 @@ pipeline {
   }
 
   post {
-    always { echo 'Pipeline finished.' }
-    failure { echo 'Build FAILED — check Test Results and Warnings.' }
+    always {
+      echo 'Pipeline finished.'
+    }
+    failure {
+      echo 'Build FAILED — check Test Results and Warnings.'
+    }
   }
 }

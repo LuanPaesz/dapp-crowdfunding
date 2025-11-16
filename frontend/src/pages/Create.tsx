@@ -1,3 +1,4 @@
+// frontend/src/pages/Create.tsx
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAccount, useWriteContract } from "wagmi";
@@ -5,38 +6,35 @@ import { parseEther } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 export default function Create() {
-  // routing
   const location = useLocation();
   const navigate = useNavigate();
-
-  // wallet + writer
   const { address, isConnected } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
 
-  // form states
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("0");
   const [durationDays, setDurationDays] = useState<number>(0);
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [projectLink, setProjectLink] = useState("");
 
-  // ui feedback
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // detect "edit-like" flow via query params
-  const params = new URLSearchParams(location.search);
-  const isEditing = params.has("title") || params.has("goal") || params.has("deadline");
-
-  // prefill from query params
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
     const pTitle = params.get("title");
     const pDescription = params.get("description");
     const pGoal = params.get("goal");
     const pDeadline = params.get("deadline");
+    const pMedia = params.get("media");
+    const pLink = params.get("externalLink");
 
     if (pTitle) setTitle(pTitle);
     if (pDescription) setDescription(pDescription);
     if (pGoal) setGoal(pGoal);
+    if (pMedia) setMediaUrl(pMedia);
+    if (pLink) setProjectLink(pLink);
 
     if (pDeadline) {
       const deadlineNum = Number(pDeadline);
@@ -47,10 +45,8 @@ export default function Create() {
         setDurationDays(days);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
-  // submit writer
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
@@ -68,14 +64,12 @@ export default function Create() {
       return;
     }
 
-    const goalWei = (() => {
-      try {
-        return parseEther(goal);
-      } catch {
-        return null;
-      }
-    })();
-
+    let goalWei: bigint | null = null;
+    try {
+      goalWei = parseEther(goal);
+    } catch {
+      goalWei = null;
+    }
     if (!goalWei || goalWei <= 0n) {
       setErrorMsg("Goal must be greater than 0.");
       return;
@@ -92,7 +86,14 @@ export default function Create() {
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "createCampaign",
-        args: [title.trim(), description.trim(), goalWei, BigInt(daysNum)],
+        args: [
+          title.trim(),
+          description.trim(),
+          mediaUrl.trim(),
+          projectLink.trim(),
+          goalWei,
+          BigInt(daysNum),
+        ],
       });
 
       setTxHash(hash);
@@ -100,7 +101,8 @@ export default function Create() {
       setDescription("");
       setGoal("0");
       setDurationDays(0);
-      // optional: navigate("/mycampaigns");
+      setMediaUrl("");
+      setProjectLink("");
     } catch (err: any) {
       setErrorMsg(err?.shortMessage || err?.message || "Transaction failed.");
     }
@@ -108,9 +110,7 @@ export default function Create() {
 
   return (
     <div className="max-w-2xl mx-auto bg-[#1a1a1a] border border-[#333] rounded-lg p-8 shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 text-white">
-        {isEditing ? "Edit Campaign" : "Create Campaign"}
-      </h2>
+      <h2 className="text-2xl font-bold mb-4 text-white">Create Campaign</h2>
 
       <form onSubmit={onSubmit} className="space-y-4 text-white">
         <div>
@@ -128,6 +128,30 @@ export default function Create() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-300">
+            Media URL (image or video)
+          </label>
+          <input
+            value={mediaUrl}
+            onChange={(e) => setMediaUrl(e.target.value)}
+            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
+            placeholder="https://example.com/image.png"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-300">
+            Project link (GitHub / Website)
+          </label>
+          <input
+            value={projectLink}
+            onChange={(e) => setProjectLink(e.target.value)}
+            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
+            placeholder="https://github.com/..."
           />
         </div>
 
@@ -172,7 +196,7 @@ export default function Create() {
             disabled={isPending}
             className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50"
           >
-            {isPending ? "Creating..." : isEditing ? "Save (Clone)" : "Create"}
+            {isPending ? "Creating..." : "Create"}
           </button>
 
           <button

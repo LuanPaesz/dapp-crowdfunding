@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml \"src/**/*.{ts,tsx}\"",
-    "lint:css": "stylelint \"frontend/src/**/*.css\" --allow-empty-input"
+    "lint:css": "stylelint \"frontend/src/**/*.css\" --allow-empty-input",
+    "test": "vitest run"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.8",
@@ -19,6 +20,7 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "react-router-dom": "^7.9.4",
+    "viem": "^2.39.0",
     "wagmi": "^2.18.0"
   },
   "devDependencies": {

@@ -1,156 +1,174 @@
-import { useEffect, useMemo, useState } from "react";
-import { formatEther, parseEther } from "viem";
-import {
-  useWriteContract,
-  useWaitForTransactionReceipt,
-  useReadContract,
-} from "wagmi";
-import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
+import { useNavigate } from "react-router-dom";
+import { formatUnits } from "viem";
 
+// -------- helper para media (image / YouTube) --------
+
+function getYouTubeId(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtu.be")) {
+      // formato: https://youtu.be/VIDEO_ID
+      return u.pathname.replace("/", "") || null;
+    }
+    if (u.hostname.includes("youtube.com")) {
+      // formato: https://www.youtube.com/watch?v=VIDEO_ID
+      const v = u.searchParams.get("v");
+      if (v) return v;
+      // formato embed etc
+      const parts = u.pathname.split("/");
+      const last = parts[parts.length - 1];
+      return last || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function isImageUrl(url: string): boolean {
+  const clean = url.split("?")[0].toLowerCase();
+  return (
+    clean.endsWith(".png") ||
+    clean.endsWith(".jpg") ||
+    clean.endsWith(".jpeg") ||
+    clean.endsWith(".gif") ||
+    clean.endsWith(".webp") ||
+    clean.endsWith(".svg")
+  );
+}
+
+function MediaPreview({ media, title }: { media?: string; title: string }) {
+  if (!media) return null;
+
+  const ytId = getYouTubeId(media);
+  if (ytId) {
+    const embedUrl = `https://www.youtube.com/embed/${ytId}`;
+    return (
+      <div className="w-full aspect-video rounded-t-xl overflow-hidden bg-black">
+        <iframe
+          src={embedUrl}
+          title={title}
+          className="w-full h-full"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  if (isImageUrl(media)) {
+    return (
+      <div className="w-full aspect-video rounded-t-xl overflow-hidden bg-black">
+        <img
+          src={media}
+          alt={title}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  // se não for imagem nem YouTube, não mostra nada (evita ícone quebrado)
+  return null;
+}
 type Campaign = {
+  owner: `0x${string}`;
   title: string;
   description: string;
   goal: bigint;
-  totalRaised: bigint;
   deadline: bigint;
+  totalRaised: bigint;
+  withdrawn: boolean;
+  exists: boolean;
+  media?: string;
+  projectLink?: string;
+  approved: boolean;
 };
 
-export default function CampaignCard({
-  id,
-  camp,
-}: {
+// -------- progress bar --------
+
+function ProgressBar({ percent }: { percent: number }) {
+  const safe = Math.max(0, Math.min(100, percent));
+  return (
+    <div className="w-full bg-white/10 rounded h-3 overflow-hidden">
+      <div
+        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+        style={{ width: `${safe}%` }}
+        aria-valuenow={safe}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      />
+    </div>
+  );
+}
+
+// -------- main card --------
+
+type Props = {
   id: number;
   camp: Campaign;
-}) {
-  const [amount, setAmount] = useState("");
-  // Removed unused txHash state
+};
 
-  // leitura ao vivo dessa campanha (watch = atualiza em novos blocos)
-  const {
-    data: live,
-    refetch,
-    isFetching: isRefreshing,
-    error: readError,
-  } = useReadContract({
-    address: CROWDFUND_ADDRESS,
-    abi: CROWDFUND_ABI,
-    functionName: "getCampaign",
-    args: [BigInt(id)],
-    // watch: true, // Removed unsupported property
-  }) as { data?: Campaign; refetch: () => void; isFetching: boolean; error?: any };
+export default function CampaignCard({ id, camp }: Props) {
+  const navigate = useNavigate();
 
-  const data = (live ?? camp) as Campaign;
+  const goalEth = Number(formatUnits(camp.goal, 18));
+  const raisedEth = Number(formatUnits(camp.totalRaised, 18));
+  const percent =
+    camp.goal > 0n ? Number((camp.totalRaised * 100n) / camp.goal) : 0;
 
-  const { data: hash, writeContractAsync } = useWriteContract();
-  const { isLoading: isMining, isSuccess: isMined } =
-    useWaitForTransactionReceipt({ hash });
+  const nowSec = Math.floor(Date.now() / 1000);
+  const secsLeft = Number(camp.deadline) - nowSec;
+  const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / (60 * 60 * 24)) : 0;
 
-  useEffect(() => {
-    if (isMined) {
-      refetch?.();
-      setAmount("");
+  let statusLabel = "Active";
+  let statusColor = "text-green-400";
+  if (camp.withdrawn) {
+    statusLabel = "Withdrawn";
+    statusColor = "text-yellow-400";
+  } else if (daysLeft <= 0) {
+    if (camp.totalRaised >= camp.goal) {
+      statusLabel = "Goal reached";
+      statusColor = "text-green-400";
+    } else {
+      statusLabel = "Failed";
+      statusColor = "text-red-400";
     }
-  }, [isMined, refetch]);
-
-  const goalEth = useMemo(() => Number(formatEther(data.goal)), [data.goal]);
-  const raisedEth = useMemo(
-    () => Number(formatEther(data.totalRaised)),
-    [data.totalRaised]
-  );
-  const percent = useMemo(() => {
-    if (!goalEth || goalEth <= 0) return 0;
-    return Math.min((raisedEth / goalEth) * 100, 100);
-  }, [goalEth, raisedEth]);
-
-  const timeLeftLabel = useMemo(() => {
-    const ms = Number(data.deadline) * 1000 - Date.now();
-    if (ms <= 0) return "ended";
-    const d = Math.floor(ms / 86400000);
-    const h = Math.floor((ms % 86400000) / 3600000);
-    return `${d}d ${h}h left`;
-  }, [data.deadline]);
-
-  const handleContribute = async () => {
-    if (!amount) return alert("Enter an amount in ETH");
-    try {
-      await writeContractAsync({
-        address: CROWDFUND_ADDRESS,
-        abi: CROWDFUND_ABI,
-        functionName: "contribute",
-        args: [BigInt(id)],
-        value: parseEther(amount),
-      });
-      // Removed setTxHash since txHash is unused
-    } catch (err: any) {
-      alert(err?.shortMessage || err?.message || "Failed to contribute");
-    }
-  };
+  }
 
   return (
-    <div className="bg-[#121212] border border-[#292929] rounded-2xl p-5 shadow-md transition hover:scale-[1.02] hover:border-[#5b21b6] duration-200">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-lg font-semibold text-white">{data.title}</h3>
-        {isRefreshing && (
-          <span className="text-[10px] text-purple-300 bg-purple-900/30 border border-purple-800 px-2 py-0.5 rounded-full">
-            updating…
+    <div
+      className="bg-white/5 rounded-xl overflow-hidden hover:scale-[1.01] transition cursor-pointer flex flex-col"
+      onClick={() => navigate(`/campaign/${id}`)}
+    >
+      {/* media (image / YouTube) */}
+      <MediaPreview media={camp.media} title={camp.title} />
+
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        <div className="flex justify-between items-start gap-3">
+          <div>
+            <h3 className="text-lg font-bold text-white">{camp.title}</h3>
+            <p className="text-sm text-white/60 mt-1 line-clamp-2">
+              {camp.description}
+            </p>
+          </div>
+          <div className="text-right text-sm">
+            <p className="text-white/80">
+              {raisedEth.toFixed(4)} / {goalEth.toFixed(4)} ETH
+            </p>
+            <p className="text-white/50">{percent}%</p>
+          </div>
+        </div>
+
+        <ProgressBar percent={percent} />
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-white/60">
+            {daysLeft > 0 ? `${daysLeft} days left` : "0 days left"}
           </span>
-        )}
+          <span className={statusColor}>{statusLabel}</span>
+        </div>
       </div>
-
-      <p className="text-sm text-gray-400 mt-1 mb-4">{data.description}</p>
-
-      <div className="w-full bg-gray-800 rounded-full h-2 mb-2 overflow-hidden">
-        <div
-          className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-[width] duration-500"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <div className="flex items-center justify-between text-xs text-gray-400 mb-3">
-        <span>
-          Raised: <span className="text-gray-200">{raisedEth.toFixed(3)}</span> /{" "}
-          <span className="text-gray-200">{goalEth.toFixed(3)}</span> ETH
-        </span>
-        <span className="text-gray-500">{timeLeftLabel}</span>
-      </div>
-
-      <div className="flex gap-2 items-center">
-        <input
-          type="number"
-          min="0"
-          step="0.001"
-          placeholder="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          disabled={isMining}
-          className="w-28 px-2 py-1 text-sm bg-gray-900 border border-gray-700 rounded-md text-white focus:outline-none focus:border-purple-500 disabled:opacity-60"
-        />
-        <button
-          onClick={handleContribute}
-          disabled={isMining}
-          className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/60 text-white text-sm px-3 py-1.5 rounded-md"
-        >
-          {isMining ? "Sending..." : "Contribute"}
-        </button>
-      </div>
-
-      {hash && (
-        <p className="text-xs text-gray-400 mt-2">
-          Tx: <span className="text-gray-300">{hash.slice(0, 10)}...</span>
-        </p>
-      )}
-      {isMined && (
-        <p className="text-green-400 text-xs mt-1">✅ Contribution confirmed!</p>
-      )}
-
-      {readError && (
-        <p className="text-red-400 text-xs mt-2">
-          Failed to refresh: {String(readError.message ?? readError)}
-        </p>
-      )}
-
-      <p className="text-[11px] text-gray-500 mt-3">
-        Deadline: {new Date(Number(data.deadline) * 1000).toLocaleString()}
-      </p>
     </div>
   );
 }
