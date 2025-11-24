@@ -1,3 +1,5 @@
+// frontend/src/pages/Explore.tsx
+import { useState } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import type { Abi } from "abitype";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
@@ -12,13 +14,16 @@ type Campaign = {
   totalRaised: bigint;
   withdrawn: boolean;
   exists: boolean;
-  // optional: present if you added admin approval/media on-chain
-  approved?: boolean;
+  approved: boolean;
   media?: string;
+  held: boolean;
+  reports: bigint;
 };
 
 export default function Explore() {
-  // read total number of campaigns with light polling for live refresh
+  const [query, setQuery] = useState("");
+
+  // read total number of campaigns
   const {
     data: nextIdData,
     isLoading: l1,
@@ -27,7 +32,6 @@ export default function Explore() {
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "nextId",
-    // keep UI in sync while developing locally
     query: { refetchInterval: 1500 },
   });
 
@@ -44,7 +48,6 @@ export default function Explore() {
         }))
       : [];
 
-  // batch read all campaigns with failure-tolerance + polling
   const {
     data: res,
     isLoading: l2,
@@ -55,34 +58,88 @@ export default function Explore() {
     query: { refetchInterval: 1500 },
   });
 
-  // map successful results, ignore non-existing ones
+  // normalize campaigns
   const rawItems =
     res
       ?.map((r, id) => {
         if (r.status !== "success") return null;
-        const c = r.result as unknown as Campaign;
-        if (!c?.exists) return null;
+        const raw = r.result as any;
+        if (!raw?.exists) return null;
+
+        const c: Campaign = {
+          ...raw,
+          approved: typeof raw.approved === "boolean" ? raw.approved : true,
+        };
+
         return { id, c };
       })
-      .filter(Boolean) ?? [];
+      .filter(
+        (x): x is { id: number; c: Campaign } => x !== null
+      ) ?? [];
 
-  // optional: only show approved campaigns if the field exists
-  const items = rawItems.filter((it) => {
-    const c = (it as { id: number; c: Campaign }).c;
-    return typeof c.approved === "boolean" ? c.approved : true;
-  }) as { id: number; c: Campaign }[];
+  // only approved campaigns
+  const approvedItems = rawItems.filter((it) => it.c.approved);
 
-  // loading & error states
+  // search filter by title/description
+  const filtered =
+    approvedItems.filter(({ c }) => {
+      if (!query.trim()) return true;
+      const q = query.toLowerCase();
+      return (
+        c.title.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q)
+      );
+    }) ?? [];
+
+  // states
   if (l1 || l2) return <div className="p-6">Loading campaigns…</div>;
-  if (e1) return <div className="p-6 text-red-400">Error (nextId): {String((e1 as any)?.message ?? e1)}</div>;
-  if (e2) return <div className="p-6 text-red-400">Error (campaigns): {String((e2 as any)?.message ?? e2)}</div>;
-  if (!items.length) return <div className="p-6">No campaigns yet.</div>;
+  if (e1)
+    return (
+      <div className="p-6 text-red-400">
+        Error (nextId): {String((e1 as any)?.message ?? e1)}
+      </div>
+    );
+  if (e2)
+    return (
+      <div className="p-6 text-red-400">
+        Error (campaigns): {String((e2 as any)?.message ?? e2)}
+      </div>
+    );
+  if (!filtered.length)
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-xl font-semibold">Explore campaigns</h1>
+          <input
+            type="text"
+            placeholder="Search by title or description..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-sm"
+          />
+        </div>
+        <p>No campaigns yet.</p>
+      </div>
+    );
 
   return (
-    <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {items.map(({ id, c }) => (
-        <CampaignCard key={id} id={id} camp={c} />
-      ))}
+    <div className="p-6 space-y-4">
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl font-semibold">Explore campaigns</h1>
+        <input
+          type="text"
+          placeholder="Search by title or description..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-sm"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map(({ id, c }) => (
+          <CampaignCard key={id} id={id} camp={c} />
+        ))}
+      </div>
     </div>
   );
 }

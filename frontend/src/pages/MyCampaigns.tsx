@@ -12,6 +12,10 @@ type Campaign = {
   totalRaised: bigint;
   withdrawn: boolean;
   exists: boolean;
+  media: string;
+  approved: boolean;
+  held: boolean;
+  reports: bigint;
 };
 
 function ProgressBar({ percent }: { percent: number }) {

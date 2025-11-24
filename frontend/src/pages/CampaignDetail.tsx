@@ -4,6 +4,8 @@ import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
+
+
 type Campaign = {
   owner: `0x${string}`;
   title: string;
@@ -16,6 +18,8 @@ type Campaign = {
   media?: string;
   projectLink?: string;
   approved: boolean;
+  held: boolean;
+  reports: bigint;
 };
 
 // Detects YouTube video ID from common URL formats
@@ -41,14 +45,8 @@ function getYouTubeId(url: string): string | null {
 // Checks if URL looks like an image
 function isImageUrl(url: string): boolean {
   const clean = url.split("?")[0].toLowerCase();
-  return (
-    clean.endsWith(".png") ||
-    clean.endsWith(".jpg") ||
-    clean.endsWith(".jpeg") ||
-    clean.endsWith(".gif") ||
-    clean.endsWith(".webp") ||
-    clean.endsWith(".svg")
-  );
+  const exts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
+  return exts.some((ext) => clean.includes(ext));
 }
 
 // Renders media block: YouTube iframe or image, or nothing
@@ -59,7 +57,7 @@ function MediaBlock({ media, title }: { media?: string; title: string }) {
   if (ytId) {
     const embedUrl = `https://www.youtube.com/embed/${ytId}`;
     return (
-      <div className="mt-4 w-full aspect-video rounded-xl overflow-hidden bg-black">
+      <div className="mt-4 w-full max-h-[420px] rounded-xl overflow-hidden bg-black">
         <iframe
           src={embedUrl}
           title={title}
@@ -73,11 +71,11 @@ function MediaBlock({ media, title }: { media?: string; title: string }) {
 
   if (isImageUrl(media)) {
     return (
-      <div className="mt-4 w-full aspect-video rounded-xl overflow-hidden bg-black">
+      <div className="mt-4 w-full max-h-[420px] rounded-xl overflow-hidden bg-black flex items-center justify-center">
         <img
           src={media}
           alt={title}
-          className="w-full h-full object-cover"
+          className="max-h-[420px] w-auto object-contain"
         />
       </div>
     );
@@ -85,6 +83,7 @@ function MediaBlock({ media, title }: { media?: string; title: string }) {
 
   return null;
 }
+
 
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>();

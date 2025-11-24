@@ -14,6 +14,8 @@ type Campaign = {
   withdrawn: boolean;
   exists: boolean;
   approved?: boolean;
+  held: boolean;
+  reports: bigint;
 };
 
 export default function Audit() {
@@ -64,11 +66,15 @@ export default function Audit() {
     (x) => x.c.totalRaised >= x.c.goal
   ).length;
   const failed = campaigns.filter(
-    (x) => x.c.totalRaised < x.c.goal && Number(x.c.deadline) * 1000 < Date.now()
+    (x) =>
+      x.c.totalRaised < x.c.goal &&
+      Number(x.c.deadline) * 1000 < Date.now()
   ).length;
 
   const successRate =
-    totalCampaigns > 0 ? ((successful / totalCampaigns) * 100).toFixed(1) : "0.0";
+    totalCampaigns > 0
+      ? ((successful / totalCampaigns) * 100).toFixed(1)
+      : "0.0";
 
   return (
     <div className="space-y-6">
@@ -80,12 +86,12 @@ export default function Audit() {
           <div className="text-2xl font-semibold mt-1">{totalCampaigns}</div>
         </div>
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="text-sm text-white/60">Total funds raised</div>
+          <div className="text-sm text.white/60">Total funds raised</div>
           <div className="text-2xl font-semibold mt-1">
             {totalRaisedEth.toFixed(4)} ETH
           </div>
         </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+        <div className="bg.white/5 border border-white/10 rounded-xl p-4">
           <div className="text-sm text-white/60">Success rate</div>
           <div className="text-2xl font-semibold mt-1">{successRate}%</div>
           <div className="text-xs text-white/50 mt-1">

@@ -1,3 +1,4 @@
+// frontend/src/pages/Admin.tsx
 import { useState } from "react";
 import {
   useAccount,
@@ -19,6 +20,8 @@ type Campaign = {
   exists: boolean;
   media: string;
   approved: boolean;
+  held: boolean;
+  reports: bigint;
 };
 
 export default function Admin() {
@@ -83,6 +86,7 @@ export default function Admin() {
         r.status === "success" ? { id, c: r.result as Campaign } : null
       )
       .filter(Boolean) as { id: number; c: Campaign }[];
+
   const { writeContractAsync } = useWriteContract();
 
   const [busyId, setBusyId] = useState<number | null>(null);
