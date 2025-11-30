@@ -89,6 +89,8 @@ type Campaign = {
   media?: string;
   projectLink?: string;
   approved: boolean;
+  held: boolean;
+  reports: bigint;
 };
 
 // =========================================================
@@ -111,7 +113,13 @@ function ProgressBar({ percent }: { percent: number }) {
 // 🔹 Main Card
 // =========================================================
 
-export default function CampaignCard({ id, camp }: { id: number; camp: Campaign }) {
+export default function CampaignCard({
+  id,
+  camp,
+}: {
+  id: number;
+  camp: Campaign;
+}) {
   const navigate = useNavigate();
 
   const goalEth = Number(formatUnits(camp.goal, 18));
@@ -123,6 +131,13 @@ export default function CampaignCard({ id, camp }: { id: number; camp: Campaign 
   const nowSec = Math.floor(Date.now() / 1000);
   const secsLeft = Number(camp.deadline) - nowSec;
   const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / 86400) : 0;
+
+  const milestones: string[] = [];
+  if (percent >= 25) milestones.push("25%");
+  if (percent >= 50) milestones.push("50%");
+  if (percent >= 100) milestones.push("100%");
+
+  const isOngoing = daysLeft > 0 && !camp.withdrawn;
 
   // Status logic
   let statusLabel = "Active";
@@ -154,25 +169,48 @@ export default function CampaignCard({ id, camp }: { id: number; camp: Campaign 
         {/* Header: título e valores */}
         <div className="flex justify-between items-start gap-3">
           <div>
-            <h3 className="text-lg font-bold text-white">{camp.title}</h3>
+            <h3 className="text-lg font-bold text-white line-clamp-1">
+              {camp.title}
+            </h3>
             <p className="text-sm text-white/60 mt-1 line-clamp-2">
               {camp.description}
             </p>
           </div>
 
-          <div className="text-right text-sm">
-            <p className="text-white/80">
-              {raisedEth.toFixed(4)} / {goalEth.toFixed(4)} ETH
-            </p>
-            <p className="text-white/50">{percent}%</p>
+          <div className="text-right text-sm flex flex-col items-end gap-1">
+            <div>
+              <p className="text-white/80">
+                {raisedEth.toFixed(4)} / {goalEth.toFixed(4)} ETH
+              </p>
+              <p className="text-white/50">{percent}%</p>
+            </div>
+            {isOngoing && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-600/20 border border-green-500/40 text-green-200">
+                LIVE
+              </span>
+            )}
           </div>
         </div>
 
         {/* Barra de progresso */}
         <ProgressBar percent={percent} />
 
+        {/* Milestones */}
+        {milestones.length > 0 && (
+          <div className="flex flex-wrap gap-1 text-[11px] mt-1">
+            {milestones.map((m) => (
+              <span
+                key={m}
+                className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80"
+              >
+                Milestone {m} reached
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Rodapé (dias + status) */}
-        <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center justify-between text-sm mt-1">
           <span className="text-white/60">
             {daysLeft > 0 ? `${daysLeft} days left` : "0 days left"}
           </span>

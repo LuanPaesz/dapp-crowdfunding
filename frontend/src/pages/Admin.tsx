@@ -7,6 +7,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import type { Abi } from "abitype";
+import { formatUnits } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 type Campaign = {
@@ -22,6 +23,7 @@ type Campaign = {
   approved: boolean;
   held: boolean;
   reports: bigint;
+  projectLink?: string;
 };
 
 export default function Admin() {
@@ -124,6 +126,38 @@ export default function Admin() {
     }
   }
 
+  async function toggleHeld(id: number, nextHeld: boolean) {
+    setErrorMsg(null);
+
+    if (!isConnected || !address) {
+      setErrorMsg("Connect your wallet as admin to hold/release campaigns.");
+      return;
+    }
+
+    setBusyId(id);
+    console.log("Calling setHeld on id", id, "held", nextHeld);
+
+    try {
+      const tx = await writeContractAsync({
+        address: CROWDFUND_ADDRESS,
+        abi: CROWDFUND_ABI,
+        functionName: "setHeld",
+        args: [BigInt(id), nextHeld],
+      });
+
+      console.log("setHeld tx hash:", tx);
+    } catch (err: any) {
+      console.error("setHeld error:", err);
+      setErrorMsg(
+        err?.shortMessage ||
+          err?.message ||
+          "Failed to update held status."
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   if (!rows.length) {
     return (
       <div className="space-y-3">
@@ -133,11 +167,32 @@ export default function Admin() {
     );
   }
 
+  const now = Math.floor(Date.now() / 1000);
+
+  const totalInflowWei = rows.reduce(
+    (acc, { c }) => acc + c.totalRaised,
+    0n
+  );
+  const totalWithdrawnWei = rows.reduce(
+    (acc, { c }) => (c.withdrawn ? acc + c.totalRaised : acc),
+    0n
+  );
+  const totalFailedWei = rows.reduce((acc, { c }) => {
+    const ended = Number(c.deadline) <= now;
+    const failed = ended && c.totalRaised < c.goal;
+    return failed ? acc + c.totalRaised : acc;
+  }, 0n);
+
+  const totalInflowEth = Number(formatUnits(totalInflowWei, 18));
+  const totalWithdrawnEth = Number(formatUnits(totalWithdrawnWei, 18));
+  const totalFailedEth = Number(formatUnits(totalFailedWei, 18));
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
       <p className="text-white/60 text-sm">
-        Review campaigns and approve or reject them before they receive funds.
+        Review campaigns, handle reports and monitor funds flow across the
+        platform.
       </p>
 
       {errorMsg && (
@@ -146,13 +201,37 @@ export default function Admin() {
         </div>
       )}
 
-      <table className="w-full text-sm border-separate border-spacing-y-2">
+      {/* Financial panel */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+          <div className="text-xs text-white/60">Total inflow (raised)</div>
+          <div className="text-xl font-semibold mt-1">
+            {totalInflowEth.toFixed(4)} ETH
+          </div>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+          <div className="text-xs text-white/60">Total withdrawn</div>
+          <div className="text-xl font-semibold mt-1">
+            {totalWithdrawnEth.toFixed(4)} ETH
+          </div>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+          <div className="text-xs text-white/60">At-risk (failed campaigns)</div>
+          <div className="text-xl font-semibold mt-1 text-yellow-300">
+            {totalFailedEth.toFixed(4)} ETH
+          </div>
+        </div>
+      </div>
+
+      <table className="w-full text-sm border-separate border-spacing-y-2 mt-2">
         <thead>
           <tr className="text-white/60">
             <th className="text-left">#</th>
             <th className="text-left">Title</th>
             <th className="text-left">Owner</th>
             <th className="text-left">Approved</th>
+            <th className="text-left">Reports</th>
+            <th className="text-left">Held</th>
             <th className="text-left">Actions</th>
           </tr>
         </thead>
@@ -169,8 +248,18 @@ export default function Admin() {
                   <span className="text-yellow-300">Pending</span>
                 )}
               </td>
+              <td className="p-3">
+                {c.reports ? c.reports.toString() : "0"}
+              </td>
+              <td className="p-3">
+                {c.held ? (
+                  <span className="text-red-400">On hold</span>
+                ) : (
+                  <span className="text-green-400">Active</span>
+                )}
+              </td>
               <td className="p-3 rounded-r-xl">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setApproval(id, true)}
                     disabled={busyId === id}
@@ -184,6 +273,17 @@ export default function Admin() {
                     className="px-3 py-1 rounded bg-red-600/70 hover:bg-red-600 disabled:opacity-60"
                   >
                     {busyId === id ? "Rejecting..." : "Reject"}
+                  </button>
+                  <button
+                    onClick={() => toggleHeld(id, !c.held)}
+                    disabled={busyId === id}
+                    className="px-3 py-1 rounded bg-yellow-600/70 hover:bg-yellow-600 disabled:opacity-60 text-xs"
+                  >
+                    {busyId === id
+                      ? "Updating..."
+                      : c.held
+                      ? "Release hold"
+                      : "Hold"}
                   </button>
                 </div>
               </td>

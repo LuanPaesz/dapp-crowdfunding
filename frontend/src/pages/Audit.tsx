@@ -76,9 +76,69 @@ export default function Audit() {
       ? ((successful / totalCampaigns) * 100).toFixed(1)
       : "0.0";
 
+  function exportCsv() {
+    if (!campaigns.length) {
+      alert("No campaigns to export.");
+      return;
+    }
+
+    const header = ["id", "title", "goal_eth", "raised_eth", "status"];
+    const rows = campaigns.map(({ id, c }) => {
+      const raised = Number(formatUnits(c.totalRaised, 18));
+      const goal = Number(formatUnits(c.goal, 18));
+      const ended = Number(c.deadline) * 1000 < Date.now();
+      const status =
+        c.totalRaised >= c.goal
+          ? "successful"
+          : ended
+          ? "failed"
+          : "ongoing";
+      return [
+        id.toString(),
+        `"${c.title.replace(/"/g, '""')}"`,
+        goal.toFixed(4),
+        raised.toFixed(4),
+        status,
+      ];
+    });
+
+    const csv = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "crowdfunding-audit.csv";
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Platform Statistics</h1>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Platform Statistics</h1>
+          <p className="text-xs text-white/50 mt-1">
+            Public read-only (mock) audit API:{" "}
+            <a
+              href="/api/audit-snapshot.json"
+              target="_blank"
+              rel="noreferrer"
+              className="underline text-purple-300"
+            >
+              /api/audit-snapshot.json
+            </a>
+          </p>
+        </div>
+
+        <button
+          onClick={exportCsv}
+          className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs"
+        >
+          Export CSV
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
@@ -86,12 +146,12 @@ export default function Audit() {
           <div className="text-2xl font-semibold mt-1">{totalCampaigns}</div>
         </div>
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="text-sm text.white/60">Total funds raised</div>
+          <div className="text-sm text-white/60">Total funds raised</div>
           <div className="text-2xl font-semibold mt-1">
             {totalRaisedEth.toFixed(4)} ETH
           </div>
         </div>
-        <div className="bg.white/5 border border-white/10 rounded-xl p-4">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
           <div className="text-sm text-white/60">Success rate</div>
           <div className="text-2xl font-semibold mt-1">{successRate}%</div>
           <div className="text-xs text-white/50 mt-1">

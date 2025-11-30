@@ -18,6 +18,7 @@ type Campaign = {
   media?: string;
   held: boolean;
   reports: bigint;
+  projectLink?: string;
 };
 
 export default function Explore() {
@@ -80,6 +81,11 @@ export default function Explore() {
   // only approved campaigns
   const approvedItems = rawItems.filter((it) => it.c.approved);
 
+  const nowSec = Math.floor(Date.now() / 1000);
+  const activeCount = approvedItems.filter(
+    ({ c }) => Number(c.deadline) > nowSec && !c.withdrawn
+  ).length;
+
   // search filter by title/description
   const filtered =
     approvedItems.filter(({ c }) => {
@@ -105,27 +111,16 @@ export default function Explore() {
         Error (campaigns): {String((e2 as any)?.message ?? e2)}
       </div>
     );
-  if (!filtered.length)
-    return (
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-semibold">Explore campaigns</h1>
-          <input
-            type="text"
-            placeholder="Search by title or description..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-sm"
-          />
-        </div>
-        <p>No campaigns yet.</p>
-      </div>
-    );
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Explore campaigns</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Explore campaigns</h1>
+          <p className="text-xs text-white/50 mt-1">
+            Showing {filtered.length} campaign(s) — {activeCount} currently LIVE.
+          </p>
+        </div>
         <input
           type="text"
           placeholder="Search by title or description..."
@@ -135,11 +130,17 @@ export default function Explore() {
         />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(({ id, c }) => (
-          <CampaignCard key={id} id={id} camp={c} />
-        ))}
-      </div>
+      {!filtered.length ? (
+        <p className="text-white/60">
+          No campaigns found. Try a different search.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map(({ id, c }) => (
+            <CampaignCard key={id} id={id} camp={c} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

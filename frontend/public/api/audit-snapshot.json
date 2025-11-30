@@ -1,0 +1,10 @@
+{
+  "generatedAt": "2025-11-29T12:00:00Z",
+  "network": "localhost-hardhat",
+  "note": "Mock public read-only audit snapshot used for the Auditor user stories.",
+  "totals": {
+    "campaigns": 0,
+    "raisedEth": 0
+  },
+  "campaigns": []
+}
