@@ -29,14 +29,17 @@ function downloadText(filename: string, text: string) {
 }
 
 export default function Audit() {
+  // ---- total number of campaigns ----
   const { data: nextIdData, isLoading: l1, error: e1 } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "nextId",
+    query: { refetchInterval: 2500 },
   });
 
-  const nextId = Number(nextIdData ?? 0);
+  const nextId = Number((nextIdData as bigint | undefined) ?? 0n);
 
+  // ---- multicall: getCampaign(0..nextId-1) ----
   const calls =
     nextId > 0
       ? Array.from({ length: nextId }, (_, id) => ({
@@ -50,34 +53,43 @@ export default function Audit() {
   const { data: res, isLoading: l2 } = useReadContracts({
     contracts: calls,
     allowFailure: true,
+    query: { refetchInterval: 2500 },
   });
 
+  // ---- normalize campaigns ----
   const campaigns: { id: number; c: Campaign }[] =
     (res
       ?.map((r, id) => {
-        if (r.status !== "success") return null;
+        if (!r || r.status !== "success") return null;
         const c = r.result as unknown as Campaign;
         if (!c?.exists) return null;
         return { id, c };
       })
       .filter(Boolean) as { id: number; c: Campaign }[]) ?? [];
 
+  // ---- UI states ----
   if (l1 || l2) return <div className="p-6">Loading stats…</div>;
   if (e1) return <div className="p-6 text-red-400">Error: {String(e1)}</div>;
 
+  // ---- stats ----
   const totalCampaigns = campaigns.length;
+
   const totalRaisedWei = campaigns.reduce((acc, x) => acc + x.c.totalRaised, 0n);
   const totalRaisedEth = Number(formatUnits(totalRaisedWei, 18));
 
+  const nowMs = Date.now();
+
   const successful = campaigns.filter((x) => x.c.totalRaised >= x.c.goal).length;
+
   const failed = campaigns.filter(
-    (x) => x.c.totalRaised < x.c.goal && Number(x.c.deadline) * 1000 < Date.now()
+    (x) =>
+      x.c.totalRaised < x.c.goal && Number(x.c.deadline) * 1000 < nowMs
   ).length;
 
   const successRate =
     totalCampaigns > 0 ? ((successful / totalCampaigns) * 100).toFixed(1) : "0.0";
 
-  // #33 Export CSV
+  // ---- #33 Export CSV ----
   function exportCSV() {
     const header = [
       "CampaignID",
@@ -98,12 +110,12 @@ export default function Audit() {
       const status =
         c.totalRaised >= c.goal
           ? "Successful"
-          : Number(c.deadline) * 1000 < Date.now()
+          : Number(c.deadline) * 1000 < nowMs
           ? "Failed"
           : "Ongoing";
 
-      const safeTitle = `"${String(c.title).split('"').join('""')}"`;
-
+      // CSV safe title
+      const safeTitle = `"${String(c.title ?? "").split('"').join('""')}"`;
 
       return [
         id,
@@ -111,7 +123,7 @@ export default function Audit() {
         goal.toFixed(6),
         raised.toFixed(6),
         status,
-        Number(c.reports),
+        Number(c.reports ?? 0n),
         c.approved ? "true" : "false",
         c.held ? "true" : "false",
         c.withdrawn ? "true" : "false",
@@ -158,57 +170,62 @@ export default function Audit() {
 
       <div>
         <h2 className="text-lg font-semibold mb-2">Recent campaigns</h2>
-        <table className="w-full text-sm border-separate border-spacing-y-2">
-          <thead>
-            <tr className="text-white/60">
-              <th className="text-left">#</th>
-              <th className="text-left">Title</th>
-              <th className="text-left">Raised / Goal</th>
-              <th className="text-left">Status</th>
-              <th className="text-left">Reports</th>
-              <th className="text-left">Flags</th>
-            </tr>
-          </thead>
 
-          <tbody>
-            {campaigns.map(({ id, c }) => {
-              const raised = Number(formatUnits(c.totalRaised, 18));
-              const goal = Number(formatUnits(c.goal, 18));
-              const status =
-                c.totalRaised >= c.goal
-                  ? "Successful"
-                  : Number(c.deadline) * 1000 < Date.now()
-                  ? "Failed"
-                  : "Ongoing";
+        {!campaigns.length ? (
+          <div className="text-white/60 text-sm">No campaigns yet.</div>
+        ) : (
+          <table className="w-full text-sm border-separate border-spacing-y-2">
+            <thead>
+              <tr className="text-white/60">
+                <th className="text-left">#</th>
+                <th className="text-left">Title</th>
+                <th className="text-left">Raised / Goal</th>
+                <th className="text-left">Status</th>
+                <th className="text-left">Reports</th>
+                <th className="text-left">Flags</th>
+              </tr>
+            </thead>
 
-              return (
-                <tr key={id} className="bg-white/5">
-                  <td className="p-3 rounded-l-xl">#{id}</td>
-                  <td className="p-3">{c.title}</td>
-                  <td className="p-3">
-                    {raised.toFixed(4)} / {goal.toFixed(4)} ETH
-                  </td>
-                  <td className="p-3">{status}</td>
-                  <td className="p-3">{Number(c.reports)}</td>
-                  <td className="p-3 rounded-r-xl">
-                    {c.approved ? (
-                      <span className="text-green-300">Approved</span>
-                    ) : (
-                      <span className="text-yellow-300">Pending</span>
-                    )}{" "}
-                    {c.held && <span className="text-yellow-300"> · Held</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+            <tbody>
+              {campaigns.map(({ id, c }) => {
+                const raised = Number(formatUnits(c.totalRaised, 18));
+                const goal = Number(formatUnits(c.goal, 18));
+
+                const status =
+                  c.totalRaised >= c.goal
+                    ? "Successful"
+                    : Number(c.deadline) * 1000 < nowMs
+                    ? "Failed"
+                    : "Ongoing";
+
+                return (
+                  <tr key={id} className="bg-white/5">
+                    <td className="p-3 rounded-l-xl">#{id}</td>
+                    <td className="p-3">{c.title}</td>
+                    <td className="p-3">
+                      {raised.toFixed(4)} / {goal.toFixed(4)} ETH
+                    </td>
+                    <td className="p-3">{status}</td>
+                    <td className="p-3">{Number(c.reports ?? 0n)}</td>
+                    <td className="p-3 rounded-r-xl">
+                      {c.approved ? (
+                        <span className="text-green-300">Approved</span>
+                      ) : (
+                        <span className="text-yellow-300">Pending</span>
+                      )}
+                      {c.held && <span className="text-yellow-300"> · Held</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* #34: public read-only API mock path */}
       <div className="text-sm text-white/60">
-        Public mock API:{" "}
-        <span className="text-white/80">/api/audit.json</span>
+        Public mock API: <span className="text-white/80">/api/audit.json</span>
       </div>
     </div>
   );

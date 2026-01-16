@@ -10,7 +10,7 @@ import CampaignEdit from "./pages/CampaignEdit";
 import CampaignDetail from "./pages/CampaignDetail";
 import Admin from "./pages/Admin";
 import Audit from "./pages/Audit";
-import AdminFinance from "./pages/AdminFinance";
+
 
 
 export default function App() {
@@ -37,7 +37,7 @@ export default function App() {
 
           {/* Admin only */}
           <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/finance" element={<AdminFinance />} />
+          
 
           
           <Route path="/audit" element={<Audit />} />
