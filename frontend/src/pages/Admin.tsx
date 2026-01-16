@@ -1,5 +1,6 @@
 // frontend/src/pages/Admin.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   useAccount,
   useReadContract,
@@ -7,7 +8,6 @@ import {
   useWriteContract,
 } from "wagmi";
 import type { Abi } from "abitype";
-import { formatUnits } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 type Campaign = {
@@ -23,17 +23,13 @@ type Campaign = {
   approved: boolean;
   held: boolean;
   reports: bigint;
-  projectLink?: string;
 };
 
 export default function Admin() {
   const { address, isConnected } = useAccount();
 
-  // admin from .env
-  const envAdmin =
-    import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase() ?? null;
+  const envAdmin = import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase() ?? null;
 
-  // admin from contract
   const { data: contractAdmin } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
@@ -47,7 +43,6 @@ export default function Admin() {
     !!lowerAddr &&
     (lowerAddr === envAdmin || (onChainAdmin && lowerAddr === onChainAdmin));
 
-  // se não for admin, bloqueia a página
   if (!isAdmin) {
     return (
       <div className="space-y-3">
@@ -63,6 +58,7 @@ export default function Admin() {
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "nextId",
+    query: { refetchInterval: 1500 },
   }) as { data?: bigint };
 
   const count = Number(nextId ?? 0n);
@@ -80,14 +76,18 @@ export default function Admin() {
   const { data } = useReadContracts({
     contracts: calls,
     allowFailure: true,
+    query: { refetchInterval: 1500 },
   });
 
   const rows =
     (data ?? [])
-      .map((r, id) =>
-        r.status === "success" ? { id, c: r.result as Campaign } : null
-      )
+      .map((r, id) => (r.status === "success" ? { id, c: r.result as Campaign } : null))
       .filter(Boolean) as { id: number; c: Campaign }[];
+
+  const reported = useMemo(
+    () => rows.filter((x) => (x.c.reports ?? 0n) > 0n),
+    [rows]
+  );
 
   const { writeContractAsync } = useWriteContract();
 
@@ -103,56 +103,39 @@ export default function Admin() {
     }
 
     setBusyId(id);
-    console.log("Calling approveCampaign on id", id, "val", val);
-
     try {
-      const tx = await writeContractAsync({
+      await writeContractAsync({
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "approveCampaign",
         args: [BigInt(id), val],
       });
-
-      console.log("approveCampaign tx hash:", tx);
     } catch (err: any) {
-      console.error("approveCampaign error:", err);
-      setErrorMsg(
-        err?.shortMessage ||
-          err?.message ||
-          "Failed to send approve/reject transaction."
-      );
+      setErrorMsg(err?.shortMessage || err?.message || "Failed to approve/reject.");
     } finally {
       setBusyId(null);
     }
   }
 
-  async function toggleHeld(id: number, nextHeld: boolean) {
+  // #29 hold / release
+  async function toggleHold(id: number, hold: boolean) {
     setErrorMsg(null);
 
     if (!isConnected || !address) {
-      setErrorMsg("Connect your wallet as admin to hold/release campaigns.");
+      setErrorMsg("Connect your wallet as admin.");
       return;
     }
 
     setBusyId(id);
-    console.log("Calling setHeld on id", id, "held", nextHeld);
-
     try {
-      const tx = await writeContractAsync({
+      await writeContractAsync({
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "setHeld",
-        args: [BigInt(id), nextHeld],
+        args: [BigInt(id), hold],
       });
-
-      console.log("setHeld tx hash:", tx);
     } catch (err: any) {
-      console.error("setHeld error:", err);
-      setErrorMsg(
-        err?.shortMessage ||
-          err?.message ||
-          "Failed to update held status."
-      );
+      setErrorMsg(err?.shortMessage || err?.message || "Failed to set hold status.");
     } finally {
       setBusyId(null);
     }
@@ -167,33 +150,24 @@ export default function Admin() {
     );
   }
 
-  const now = Math.floor(Date.now() / 1000);
-
-  const totalInflowWei = rows.reduce(
-    (acc, { c }) => acc + c.totalRaised,
-    0n
-  );
-  const totalWithdrawnWei = rows.reduce(
-    (acc, { c }) => (c.withdrawn ? acc + c.totalRaised : acc),
-    0n
-  );
-  const totalFailedWei = rows.reduce((acc, { c }) => {
-    const ended = Number(c.deadline) <= now;
-    const failed = ended && c.totalRaised < c.goal;
-    return failed ? acc + c.totalRaised : acc;
-  }, 0n);
-
-  const totalInflowEth = Number(formatUnits(totalInflowWei, 18));
-  const totalWithdrawnEth = Number(formatUnits(totalWithdrawnWei, 18));
-  const totalFailedEth = Number(formatUnits(totalFailedWei, 18));
-
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-      <p className="text-white/60 text-sm">
-        Review campaigns, handle reports and monitor funds flow across the
-        platform.
-      </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <p className="text-white/60 text-sm">
+            Review campaigns, manage reports, and place campaigns on hold.
+          </p>
+        </div>
+
+        {/* #26 Finance page */}
+        <Link
+          to="/admin/finance"
+          className="px-4 py-2 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
+        >
+          Financial Panel →
+        </Link>
+      </div>
 
       {errorMsg && (
         <div className="text-sm text-red-400 bg-red-950/40 border border-red-700 rounded px-3 py-2">
@@ -201,96 +175,149 @@ export default function Admin() {
         </div>
       )}
 
-      {/* Financial panel */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="text-xs text-white/60">Total inflow (raised)</div>
-          <div className="text-xl font-semibold mt-1">
-            {totalInflowEth.toFixed(4)} ETH
-          </div>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="text-xs text-white/60">Total withdrawn</div>
-          <div className="text-xl font-semibold mt-1">
-            {totalWithdrawnEth.toFixed(4)} ETH
-          </div>
-        </div>
-        <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-          <div className="text-xs text-white/60">At-risk (failed campaigns)</div>
-          <div className="text-xl font-semibold mt-1 text-yellow-300">
-            {totalFailedEth.toFixed(4)} ETH
-          </div>
-        </div>
+      {/* #24 reported campaigns */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+        <h2 className="text-lg font-semibold">Reported campaigns</h2>
+        <p className="text-sm text-white/60 mt-1">
+          Campaigns with at least 1 report.
+        </p>
+
+        {!reported.length ? (
+          <p className="text-sm text-white/60 mt-3">No reported campaigns.</p>
+        ) : (
+          <table className="w-full text-sm border-separate border-spacing-y-2 mt-3">
+            <thead>
+              <tr className="text-white/60">
+                <th className="text-left">#</th>
+                <th className="text-left">Title</th>
+                <th className="text-left">Reports</th>
+                <th className="text-left">Hold</th>
+                <th className="text-left">Open</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reported.map(({ id, c }) => (
+                <tr key={id} className="bg-black/20">
+                  <td className="p-3 rounded-l-xl">#{id}</td>
+                  <td className="p-3">{c.title}</td>
+                  <td className="p-3">{Number(c.reports)}</td>
+                  <td className="p-3">
+                    {c.held ? (
+                      <button
+                        disabled={busyId === id}
+                        onClick={() => toggleHold(id, false)}
+                        className="px-3 py-1 rounded bg-green-600/70 hover:bg-green-600 disabled:opacity-60"
+                      >
+                        {busyId === id ? "..." : "Release"}
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busyId === id}
+                        onClick={() => toggleHold(id, true)}
+                        className="px-3 py-1 rounded bg-yellow-600/70 hover:bg-yellow-600 disabled:opacity-60"
+                      >
+                        {busyId === id ? "..." : "Hold"}
+                      </button>
+                    )}
+                  </td>
+                  <td className="p-3 rounded-r-xl">
+                    <Link
+                      to={`/campaign/${id}`}
+                      className="text-purple-300 hover:text-purple-200 underline"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
-      <table className="w-full text-sm border-separate border-spacing-y-2 mt-2">
-        <thead>
-          <tr className="text-white/60">
-            <th className="text-left">#</th>
-            <th className="text-left">Title</th>
-            <th className="text-left">Owner</th>
-            <th className="text-left">Approved</th>
-            <th className="text-left">Reports</th>
-            <th className="text-left">Held</th>
-            <th className="text-left">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map(({ id, c }) => (
-            <tr key={id} className="bg-white/5">
-              <td className="p-3 rounded-l-xl">#{id}</td>
-              <td className="p-3">{c.title}</td>
-              <td className="p-3">{c.owner}</td>
-              <td className="p-3">
-                {c.approved ? (
-                  <span className="text-green-400">Approved</span>
-                ) : (
-                  <span className="text-yellow-300">Pending</span>
-                )}
-              </td>
-              <td className="p-3">
-                {c.reports ? c.reports.toString() : "0"}
-              </td>
-              <td className="p-3">
-                {c.held ? (
-                  <span className="text-red-400">On hold</span>
-                ) : (
-                  <span className="text-green-400">Active</span>
-                )}
-              </td>
-              <td className="p-3 rounded-r-xl">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setApproval(id, true)}
-                    disabled={busyId === id}
-                    className="px-3 py-1 rounded bg-green-600/70 hover:bg-green-600 disabled:opacity-60"
-                  >
-                    {busyId === id ? "Approving..." : "Approve"}
-                  </button>
-                  <button
-                    onClick={() => setApproval(id, false)}
-                    disabled={busyId === id}
-                    className="px-3 py-1 rounded bg-red-600/70 hover:bg-red-600 disabled:opacity-60"
-                  >
-                    {busyId === id ? "Rejecting..." : "Reject"}
-                  </button>
-                  <button
-                    onClick={() => toggleHeld(id, !c.held)}
-                    disabled={busyId === id}
-                    className="px-3 py-1 rounded bg-yellow-600/70 hover:bg-yellow-600 disabled:opacity-60 text-xs"
-                  >
-                    {busyId === id
-                      ? "Updating..."
-                      : c.held
-                      ? "Release hold"
-                      : "Hold"}
-                  </button>
-                </div>
-              </td>
+      {/* approval table */}
+      <div>
+        <h2 className="text-lg font-semibold mb-2">Approval queue</h2>
+
+        <table className="w-full text-sm border-separate border-spacing-y-2">
+          <thead>
+            <tr className="text-white/60">
+              <th className="text-left">#</th>
+              <th className="text-left">Title</th>
+              <th className="text-left">Owner</th>
+              <th className="text-left">Approved</th>
+              <th className="text-left">Held</th>
+              <th className="text-left">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map(({ id, c }) => (
+              <tr key={id} className="bg-white/5">
+                <td className="p-3 rounded-l-xl">#{id}</td>
+                <td className="p-3">{c.title}</td>
+                <td className="p-3">{c.owner}</td>
+                <td className="p-3">
+                  {c.approved ? (
+                    <span className="text-green-400">Approved</span>
+                  ) : (
+                    <span className="text-yellow-300">Pending</span>
+                  )}
+                </td>
+                <td className="p-3">
+                  {c.held ? (
+                    <span className="text-yellow-300">Held</span>
+                  ) : (
+                    <span className="text-white/50">—</span>
+                  )}
+                </td>
+                <td className="p-3 rounded-r-xl">
+                  <div className="flex gap-2 flex-wrap">
+                    <button
+                      onClick={() => setApproval(id, true)}
+                      disabled={busyId === id}
+                      className="px-3 py-1 rounded bg-green-600/70 hover:bg-green-600 disabled:opacity-60"
+                    >
+                      {busyId === id ? "..." : "Approve"}
+                    </button>
+                    <button
+                      onClick={() => setApproval(id, false)}
+                      disabled={busyId === id}
+                      className="px-3 py-1 rounded bg-red-600/70 hover:bg-red-600 disabled:opacity-60"
+                    >
+                      {busyId === id ? "..." : "Reject"}
+                    </button>
+
+                    {c.held ? (
+                      <button
+                        disabled={busyId === id}
+                        onClick={() => toggleHold(id, false)}
+                        className="px-3 py-1 rounded bg-green-600/30 hover:bg-green-600/40 disabled:opacity-60"
+                      >
+                        Release
+                      </button>
+                    ) : (
+                      <button
+                        disabled={busyId === id}
+                        onClick={() => toggleHold(id, true)}
+                        className="px-3 py-1 rounded bg-yellow-600/30 hover:bg-yellow-600/40 disabled:opacity-60"
+                      >
+                        Hold
+                      </button>
+                    )}
+
+                    <Link
+                      to={`/campaign/${id}`}
+                      className="px-3 py-1 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-xs"
+                    >
+                      Open
+                    </Link>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

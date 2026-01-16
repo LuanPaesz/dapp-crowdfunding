@@ -13,10 +13,20 @@ type Campaign = {
   totalRaised: bigint;
   withdrawn: boolean;
   exists: boolean;
-  approved?: boolean;
+  approved: boolean;
   held: boolean;
   reports: bigint;
 };
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function Audit() {
   const { data: nextIdData, isLoading: l1, error: e1 } = useReadContract({
@@ -43,98 +53,82 @@ export default function Audit() {
   });
 
   const campaigns: { id: number; c: Campaign }[] =
-    res
+    (res
       ?.map((r, id) => {
         if (r.status !== "success") return null;
         const c = r.result as unknown as Campaign;
         if (!c?.exists) return null;
         return { id, c };
       })
-      .filter(Boolean) as { id: number; c: Campaign }[] ?? [];
+      .filter(Boolean) as { id: number; c: Campaign }[]) ?? [];
 
   if (l1 || l2) return <div className="p-6">Loading stats…</div>;
   if (e1) return <div className="p-6 text-red-400">Error: {String(e1)}</div>;
 
   const totalCampaigns = campaigns.length;
-  const totalRaisedWei = campaigns.reduce(
-    (acc, x) => acc + x.c.totalRaised,
-    0n
-  );
+  const totalRaisedWei = campaigns.reduce((acc, x) => acc + x.c.totalRaised, 0n);
   const totalRaisedEth = Number(formatUnits(totalRaisedWei, 18));
 
-  const successful = campaigns.filter(
-    (x) => x.c.totalRaised >= x.c.goal
-  ).length;
+  const successful = campaigns.filter((x) => x.c.totalRaised >= x.c.goal).length;
   const failed = campaigns.filter(
-    (x) =>
-      x.c.totalRaised < x.c.goal &&
-      Number(x.c.deadline) * 1000 < Date.now()
+    (x) => x.c.totalRaised < x.c.goal && Number(x.c.deadline) * 1000 < Date.now()
   ).length;
 
   const successRate =
-    totalCampaigns > 0
-      ? ((successful / totalCampaigns) * 100).toFixed(1)
-      : "0.0";
+    totalCampaigns > 0 ? ((successful / totalCampaigns) * 100).toFixed(1) : "0.0";
 
-  function exportCsv() {
-    if (!campaigns.length) {
-      alert("No campaigns to export.");
-      return;
-    }
+  // #33 Export CSV
+  function exportCSV() {
+    const header = [
+      "CampaignID",
+      "Title",
+      "GoalETH",
+      "RaisedETH",
+      "Status",
+      "Reports",
+      "Approved",
+      "Held",
+      "Withdrawn",
+    ].join(",");
 
-    const header = ["id", "title", "goal_eth", "raised_eth", "status"];
-    const rows = campaigns.map(({ id, c }) => {
+    const lines = campaigns.map(({ id, c }) => {
       const raised = Number(formatUnits(c.totalRaised, 18));
       const goal = Number(formatUnits(c.goal, 18));
-      const ended = Number(c.deadline) * 1000 < Date.now();
+
       const status =
         c.totalRaised >= c.goal
-          ? "successful"
-          : ended
-          ? "failed"
-          : "ongoing";
+          ? "Successful"
+          : Number(c.deadline) * 1000 < Date.now()
+          ? "Failed"
+          : "Ongoing";
+
+      const safeTitle = `"${String(c.title).split('"').join('""')}"`;
+
+
       return [
-        id.toString(),
-        `"${c.title.replace(/"/g, '""')}"`,
-        goal.toFixed(4),
-        raised.toFixed(4),
+        id,
+        safeTitle,
+        goal.toFixed(6),
+        raised.toFixed(6),
         status,
-      ];
+        Number(c.reports),
+        c.approved ? "true" : "false",
+        c.held ? "true" : "false",
+        c.withdrawn ? "true" : "false",
+      ].join(",");
     });
 
-    const csv = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "crowdfunding-audit.csv";
-    a.click();
-
-    URL.revokeObjectURL(url);
+    const csv = [header, ...lines].join("\n");
+    downloadText("blockfund_audit_export.csv", csv);
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Platform Statistics</h1>
-          <p className="text-xs text-white/50 mt-1">
-            Public read-only (mock) audit API:{" "}
-            <a
-              href="/api/audit-snapshot.json"
-              target="_blank"
-              rel="noreferrer"
-              className="underline text-purple-300"
-            >
-              /api/audit-snapshot.json
-            </a>
-          </p>
-        </div>
-
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Platform Statistics</h1>
         <button
-          onClick={exportCsv}
-          className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs"
+          onClick={exportCSV}
+          className="px-4 py-2 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-sm"
         >
           Export CSV
         </button>
@@ -145,12 +139,14 @@ export default function Audit() {
           <div className="text-sm text-white/60">Total campaigns</div>
           <div className="text-2xl font-semibold mt-1">{totalCampaigns}</div>
         </div>
+
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
           <div className="text-sm text-white/60">Total funds raised</div>
           <div className="text-2xl font-semibold mt-1">
             {totalRaisedEth.toFixed(4)} ETH
           </div>
         </div>
+
         <div className="bg-white/5 border border-white/10 rounded-xl p-4">
           <div className="text-sm text-white/60">Success rate</div>
           <div className="text-2xl font-semibold mt-1">{successRate}%</div>
@@ -169,8 +165,11 @@ export default function Audit() {
               <th className="text-left">Title</th>
               <th className="text-left">Raised / Goal</th>
               <th className="text-left">Status</th>
+              <th className="text-left">Reports</th>
+              <th className="text-left">Flags</th>
             </tr>
           </thead>
+
           <tbody>
             {campaigns.map(({ id, c }) => {
               const raised = Number(formatUnits(c.totalRaised, 18));
@@ -181,6 +180,7 @@ export default function Audit() {
                   : Number(c.deadline) * 1000 < Date.now()
                   ? "Failed"
                   : "Ongoing";
+
               return (
                 <tr key={id} className="bg-white/5">
                   <td className="p-3 rounded-l-xl">#{id}</td>
@@ -188,12 +188,27 @@ export default function Audit() {
                   <td className="p-3">
                     {raised.toFixed(4)} / {goal.toFixed(4)} ETH
                   </td>
-                  <td className="p-3 rounded-r-xl">{status}</td>
+                  <td className="p-3">{status}</td>
+                  <td className="p-3">{Number(c.reports)}</td>
+                  <td className="p-3 rounded-r-xl">
+                    {c.approved ? (
+                      <span className="text-green-300">Approved</span>
+                    ) : (
+                      <span className="text-yellow-300">Pending</span>
+                    )}{" "}
+                    {c.held && <span className="text-yellow-300"> · Held</span>}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* #34: public read-only API mock path */}
+      <div className="text-sm text-white/60">
+        Public mock API:{" "}
+        <span className="text-white/80">/api/audit.json</span>
       </div>
     </div>
   );

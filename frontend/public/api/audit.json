@@ -1,0 +1,11 @@
+{
+  "platform": "BlockFund",
+  "network": "localhost",
+  "updatedAt": "2026-01-12T00:00:00Z",
+  "stats": {
+    "totalCampaigns": 0,
+    "totalRaisedEth": 0,
+    "successRatePercent": 0
+  },
+  "recentCampaigns": []
+}

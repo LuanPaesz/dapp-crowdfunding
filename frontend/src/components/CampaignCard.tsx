@@ -1,28 +1,21 @@
 // frontend/src/components/CampaignCard.tsx
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatUnits } from "viem";
 
 // =========================================================
-// 🔹 Helpers para identificar tipo de mídia (imagem / YouTube)
+// Helpers para mídia (imagem / YouTube)
 // =========================================================
-
 function getYouTubeId(url: string): string | null {
   try {
     const u = new URL(url);
-
-    if (u.hostname.includes("youtu.be")) {
-      return u.pathname.replace("/", "") || null;
-    }
-
+    if (u.hostname.includes("youtu.be")) return u.pathname.replace("/", "") || null;
     if (u.hostname.includes("youtube.com")) {
       const v = u.searchParams.get("v");
       if (v) return v;
-
       const parts = u.pathname.split("/");
-      const last = parts[parts.length - 1];
-      return last || null;
+      return parts[parts.length - 1] || null;
     }
-
     return null;
   } catch {
     return null;
@@ -30,18 +23,10 @@ function getYouTubeId(url: string): string | null {
 }
 
 function isImageUrl(url: string): boolean {
-  // ignora query string
   const clean = url.split("?")[0].toLowerCase();
-
   const exts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
-
-  // considera imagem se a URL contiver a extensão em qualquer lugar do path
   return exts.some((ext) => clean.includes(ext));
 }
-
-// =========================================================
-// 🔹 Componente de preview (imagem / vídeo YouTube)
-// =========================================================
 
 function MediaPreview({ media, title }: { media?: string; title: string }) {
   if (!media) return null;
@@ -74,9 +59,41 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
 }
 
 // =========================================================
-// 🔹 Tipagem da Campanha
+// Hook: anima número quando valor muda (#6)
 // =========================================================
+function useAnimatedNumber(value: number, durationMs = 500) {
+  const [display, setDisplay] = useState(value);
 
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const from = display;
+    const to = value;
+
+    if (!Number.isFinite(from) || !Number.isFinite(to)) {
+      setDisplay(value);
+      return;
+    }
+    if (from === to) return;
+
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / durationMs);
+      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
+      setDisplay(from + (to - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return display;
+}
+
+// =========================================================
+// Tipagem Campaign
+// =========================================================
 type Campaign = {
   owner: `0x${string}`;
   title: string;
@@ -94,58 +111,79 @@ type Campaign = {
 };
 
 // =========================================================
-// 🔹 Progress Bar
+// UI: progress + milestones (#7)
 // =========================================================
-
 function ProgressBar({ percent }: { percent: number }) {
   const safe = Math.max(0, Math.min(100, percent));
   return (
     <div className="w-full bg-white/10 rounded h-3 overflow-hidden">
       <div
-        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
         style={{ width: `${safe}%` }}
       />
     </div>
   );
 }
 
-// =========================================================
-// 🔹 Main Card
-// =========================================================
+function Milestones({ percent }: { percent: number }) {
+  const p = Math.max(0, Math.min(100, percent));
+  const reached25 = p >= 25;
+  const reached50 = p >= 50;
+  const reached100 = p >= 100;
 
-export default function CampaignCard({
-  id,
-  camp,
-}: {
-  id: number;
-  camp: Campaign;
-}) {
+  const badge = (label: string, ok: boolean) => (
+    <span
+      className={
+        "text-[11px] px-2 py-0.5 rounded-full border " +
+        (ok
+          ? "bg-green-500/10 border-green-500/30 text-green-300"
+          : "bg-white/5 border-white/10 text-white/50")
+      }
+    >
+      {label}
+    </span>
+  );
+
+  return (
+    <div className="flex gap-2 flex-wrap">
+      {badge("25%", reached25)}
+      {badge("50%", reached50)}
+      {badge("Funded", reached100)}
+    </div>
+  );
+}
+
+// =========================================================
+// Main Card
+// =========================================================
+export default function CampaignCard({ id, camp }: { id: number; camp: Campaign }) {
   const navigate = useNavigate();
 
   const goalEth = Number(formatUnits(camp.goal, 18));
   const raisedEth = Number(formatUnits(camp.totalRaised, 18));
 
-  const percent =
-    camp.goal > 0n ? Number((camp.totalRaised * 100n) / camp.goal) : 0;
+  const percent = camp.goal > 0n ? Number((camp.totalRaised * 100n) / camp.goal) : 0;
 
   const nowSec = Math.floor(Date.now() / 1000);
   const secsLeft = Number(camp.deadline) - nowSec;
   const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / 86400) : 0;
 
-  const milestones: string[] = [];
-  if (percent >= 25) milestones.push("25%");
-  if (percent >= 50) milestones.push("50%");
-  if (percent >= 100) milestones.push("100%");
+  // #6: número animado
+  const raisedAnim = useAnimatedNumber(raisedEth, 500);
 
-  const isOngoing = daysLeft > 0 && !camp.withdrawn;
-
-  // Status logic
+  // status
   let statusLabel = "Active";
   let statusColor = "text-green-400";
 
-  if (camp.withdrawn) {
+  if (camp.held) {
+    statusLabel = "Held";
+    statusColor = "text-yellow-300";
+  } else if (!camp.approved) {
+    statusLabel = "Pending";
+    statusColor = "text-yellow-300";
+  } else if (camp.withdrawn) {
     statusLabel = "Withdrawn";
-    statusColor = "text-yellow-400";
+    statusColor = "text-yellow-300";
   } else if (daysLeft <= 0) {
     if (camp.totalRaised >= camp.goal) {
       statusLabel = "Goal reached";
@@ -161,56 +199,31 @@ export default function CampaignCard({
       className="bg-white/5 rounded-xl overflow-hidden hover:scale-[1.01] transition cursor-pointer flex flex-col"
       onClick={() => navigate(`/campaign/${id}`)}
     >
-      {/* Mídia da campanha */}
       <MediaPreview media={camp.media} title={camp.title} />
 
-      {/* Conteúdo */}
       <div className="p-4 flex flex-col gap-3 flex-1">
-        {/* Header: título e valores */}
         <div className="flex justify-between items-start gap-3">
           <div>
-            <h3 className="text-lg font-bold text-white line-clamp-1">
-              {camp.title}
-            </h3>
+            <h3 className="text-lg font-bold text-white">{camp.title}</h3>
             <p className="text-sm text-white/60 mt-1 line-clamp-2">
               {camp.description}
             </p>
           </div>
 
-          <div className="text-right text-sm flex flex-col items-end gap-1">
-            <div>
-              <p className="text-white/80">
-                {raisedEth.toFixed(4)} / {goalEth.toFixed(4)} ETH
-              </p>
-              <p className="text-white/50">{percent}%</p>
-            </div>
-            {isOngoing && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-600/20 border border-green-500/40 text-green-200">
-                LIVE
-              </span>
-            )}
+          <div className="text-right text-sm">
+            <p className="text-white/80">
+              {raisedAnim.toFixed(4)} / {goalEth.toFixed(4)} ETH
+            </p>
+            <p className="text-white/50">{Math.max(0, Math.min(100, percent))}%</p>
           </div>
         </div>
 
-        {/* Barra de progresso */}
+        {/* #7 milestones */}
+        <Milestones percent={percent} />
+
         <ProgressBar percent={percent} />
 
-        {/* Milestones */}
-        {milestones.length > 0 && (
-          <div className="flex flex-wrap gap-1 text-[11px] mt-1">
-            {milestones.map((m) => (
-              <span
-                key={m}
-                className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80"
-              >
-                Milestone {m} reached
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Rodapé (dias + status) */}
-        <div className="flex items-center justify-between text-sm mt-1">
+        <div className="flex items-center justify-between text-sm">
           <span className="text-white/60">
             {daysLeft > 0 ? `${daysLeft} days left` : "0 days left"}
           </span>
