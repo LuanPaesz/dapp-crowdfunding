@@ -57,7 +57,7 @@ export default function CampaignUpdates({
   }
 
   return (
-    <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-5 space-y-4">
+    <div className="mt-6 card space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Campaign updates</h2>
         <span className="text-xs text-white/50">Mock posts (off-chain)</span>
@@ -69,12 +69,9 @@ export default function CampaignUpdates({
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Write an update for backers..."
-            className="w-full min-h-[90px] px-3 py-2 rounded bg-white/10 border border-white/20 text-sm"
+            className="input min-h-[90px]"
           />
-          <button
-            onClick={addUpdate}
-            className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 text-sm"
-          >
+          <button onClick={addUpdate} className="btn-primary text-sm">
             Post update
           </button>
         </div>

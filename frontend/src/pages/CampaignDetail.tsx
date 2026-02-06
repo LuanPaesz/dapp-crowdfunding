@@ -10,6 +10,7 @@ import {
 import { formatUnits, parseUnits } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 import CampaignUpdates from "../components/CampaignUpdates";
+import { useEthUsdPrice, formatUsd } from "../lib/pricing";
 
 type Campaign = {
   owner: `0x${string}`;
@@ -57,30 +58,33 @@ function MediaBlock({ media, title }: { media?: string; title: string }) {
   if (ytId) {
     const embedUrl = `https://www.youtube.com/embed/${ytId}`;
     return (
-      <div className="mt-4 w-full max-h-[420px] rounded-xl overflow-hidden bg-black">
-        <iframe
-          src={embedUrl}
-          title={title}
-          className="w-full h-[420px]"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+      <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+        <div className="aspect-video w-full">
+          <iframe
+            src={embedUrl}
+            title={title}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
       </div>
     );
   }
 
   if (isImageUrl(media)) {
     return (
-      <div className="mt-4 w-full max-h-[420px] rounded-xl overflow-hidden bg-black flex items-center justify-center">
-        <img
-          src={media}
-          alt={title}
-          className="max-h-[420px] w-auto object-contain"
-          onError={(e) => {
-            // fallback simples para evitar quebrar layout
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
+      <div className="w-full overflow-hidden rounded-2xl border border-white/10 bg-black">
+        <div className="aspect-video w-full flex items-center justify-center">
+          <img
+            src={media}
+            alt={title}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
       </div>
     );
   }
@@ -147,13 +151,30 @@ function Milestones({ percent }: { percent: number }) {
   );
 }
 
+function ProgressBar({ percent }: { percent: number }) {
+  const safe = Math.max(0, Math.min(100, percent));
+  return (
+    <div className="w-full rounded-full overflow-hidden bg-white/10 h-2">
+      <div
+        className="h-full transition-all duration-500"
+        style={{
+          width: `${safe}%`,
+          background:
+            "linear-gradient(90deg, rgba(139,92,246,1) 0%, rgba(236,72,153,1) 100%)",
+        }}
+      />
+    </div>
+  );
+}
+
 export default function CampaignDetail() {
-  // ✅ hooks SEMPRE no topo
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
+
+  const ethUsd = useEthUsdPrice();
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
@@ -163,7 +184,6 @@ export default function CampaignDetail() {
   const [avgContributionEth, setAvgContributionEth] = useState<number | null>(null);
   const [myTxs, setMyTxs] = useState<{ amountEth: number; blockNumber: bigint }[]>([]);
 
-  // ✅ campaignId “seguro” (nunca chama BigInt(undefined))
   const campaignId = useMemo(() => {
     try {
       return BigInt(id ?? "0");
@@ -172,13 +192,7 @@ export default function CampaignDetail() {
     }
   }, [id]);
 
-  // ✅ leitura do contrato
-  const {
-    data: raw,
-    isLoading,
-    error,
-    refetch,
-  } = useReadContract({
+  const { data: raw, isLoading, error, refetch } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "getCampaign",
@@ -202,7 +216,6 @@ export default function CampaignDetail() {
     query: { enabled: !!address, refetchInterval: 3000 },
   }) as { data?: bigint };
 
-  // ✅ valores “seguros” pra hooks (mesmo quando raw ainda está vazio)
   const safeGoal = raw?.goal ?? 0n;
   const safeRaised = raw?.totalRaised ?? 0n;
   const safePercent = safeGoal > 0n ? Number((safeRaised * 100n) / safeGoal) : 0;
@@ -210,17 +223,15 @@ export default function CampaignDetail() {
   const goalEth = Number(formatUnits(safeGoal, 18));
   const raisedEth = Number(formatUnits(safeRaised, 18));
 
-  // ✅ hooks de animação SEMPRE chamados (nunca depois de return)
   const raisedAnim = useAnimatedNumber(raisedEth, 600);
   const percentAnim = useAnimatedNumber(Math.max(0, Math.min(100, safePercent)), 600);
 
-  // ✅ #14/#15 logs: roda sempre, mas só executa se tiver publicClient e campanha válida
   useEffect(() => {
     let alive = true;
 
     async function loadLogs() {
       if (!publicClient) return;
-      if (!id) return; // id inválido
+      if (!id) return;
       if (campaignId < 0n) return;
 
       try {
@@ -283,26 +294,27 @@ export default function CampaignDetail() {
     };
   }, [publicClient, campaignId, address, id]);
 
-  // ✅ agora sim: returns condicionais (depois de todos hooks)
   if (!id) return <p className="p-6">Invalid campaign id.</p>;
   if (isLoading) return <p className="p-6">Loading campaign…</p>;
   if (error) return <p className="p-6 text-red-400">Error: {String(error)}</p>;
   if (!raw || !raw.exists) return <p className="p-6">Campaign not found.</p>;
 
-  // daqui pra baixo raw existe de verdade
   const c = raw;
 
   const nowSec = Math.floor(Date.now() / 1000);
   const secsLeft = Number(c.deadline) - nowSec;
-  const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / (60 * 60 * 24)) : 0;
+  const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / 86400) : 0;
   const ended = secsLeft <= 0;
   const success = c.totalRaised >= c.goal;
 
   const isOwner = !!address && c.owner.toLowerCase() === address.toLowerCase();
-
   const myContributionEth = myContribution ? Number(formatUnits(myContribution, 18)) : 0;
 
-  // -------------------- actions --------------------
+  const raisedUsd = ethUsd ? raisedAnim * ethUsd : null;
+  const goalUsd = ethUsd ? goalEth * ethUsd : null;
+  const myUsd = ethUsd ? myContributionEth * ethUsd : null;
+  const avgUsd = ethUsd && avgContributionEth !== null ? avgContributionEth * ethUsd : null;
+
   async function handleContribute() {
     setErrorMsg(null);
     setInfoMsg(null);
@@ -393,189 +405,207 @@ export default function CampaignDetail() {
     }
   }
 
-  // -------------------- render --------------------
   return (
-    <div className="max-w-3xl mx-auto bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+    <div className="space-y-6">
       <button
-        className="text-sm text-white/60 hover:text-white mb-2"
+        className="text-sm text-white/60 hover:text-white"
         onClick={() => navigate(-1)}
       >
         ← Back
       </button>
 
-      <h1 className="text-2xl font-bold">{c.title}</h1>
-      <p className="text-white/70">{c.description}</p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+        {/* LEFT */}
+        <section className="space-y-5">
+          <div>
+            <h1 className="text-3xl font-bold">{c.title}</h1>
+            <p className="text-white/70 mt-2">{c.description}</p>
+          </div>
 
-      <MediaBlock media={c.media} title={c.title} />
+          <MediaBlock media={c.media} title={c.title} />
 
-      {c.projectLink && (
-        <a
-          href={c.projectLink}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-block mt-3 text-sm text-purple-400 hover:text-purple-300 underline"
-        >
-          View project link
-        </a>
-      )}
-
-      {errorMsg && (
-        <div className="text-red-300 text-sm bg-red-950/40 border border-red-800 rounded px-3 py-2">
-          {errorMsg}
-        </div>
-      )}
-      {infoMsg && (
-        <div className="text-green-300 text-sm bg-green-950/30 border border-green-800 rounded px-3 py-2">
-          {infoMsg}
-        </div>
-      )}
-
-      {/* Progress / status */}
-      <div className="space-y-2 mt-4">
-        <div className="flex justify-between text-sm">
-          <span className="text-white/60">
-            Raised: <span className="text-white">{raisedAnim.toFixed(4)}</span> /{" "}
-            <span className="text-white">{goalEth.toFixed(4)} ETH</span>
-          </span>
-          <span className="text-white/60">{percentAnim.toFixed(0)}%</span>
-        </div>
-
-        <div className="w-full bg-white/10 rounded h-3 overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-            style={{ width: `${Math.max(0, Math.min(100, percentAnim))}%` }}
-          />
-        </div>
-
-        <Milestones percent={safePercent} />
-
-        <div className="text-sm text-white/60">
-          {ended ? (
-            success ? (
-              <span className="text-green-400">Goal reached</span>
-            ) : (
-              <span className="text-red-400">Failed (goal not reached)</span>
-            )
-          ) : (
-            <span>
-              {daysLeft} day{daysLeft !== 1 ? "s" : ""} left
-            </span>
-          )}{" "}
-          · Owner: <span className="text-white/80">{c.owner}</span>
-        </div>
-
-        <div className="text-sm">
-          Status:{" "}
-          {!c.approved ? (
-            <span className="text-yellow-300">Pending approval</span>
-          ) : c.held ? (
-            <span className="text-yellow-300">Held by admin</span>
-          ) : (
-            <span className="text-green-400">Approved</span>
+          {c.projectLink && (
+            <a
+              href={c.projectLink}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block text-sm text-purple-400 hover:text-purple-300 underline"
+            >
+              View project link
+            </a>
           )}
-        </div>
 
-        {/* #14 stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <div className="text-xs text-white/60">Backers (estimated)</div>
-            <div className="text-lg font-semibold">{backersCount ?? "—"}</div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <div className="text-xs text-white/60">Avg contribution</div>
-            <div className="text-lg font-semibold">
-              {avgContributionEth === null ? "—" : `${avgContributionEth.toFixed(4)} ETH`}
+          {errorMsg && (
+            <div className="text-red-200 text-sm bg-red-950/40 border border-red-800/60 rounded-xl px-3 py-2">
+              {errorMsg}
             </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <div className="text-xs text-white/60">Reports</div>
-            <div className="text-lg font-semibold">{Number(c.reports)}</div>
-          </div>
-        </div>
-      </div>
+          )}
+          {infoMsg && (
+            <div className="text-green-200 text-sm bg-green-950/30 border border-green-800/60 rounded-xl px-3 py-2">
+              {infoMsg}
+            </div>
+          )}
 
-      {/* My contribution + history */}
-      <div className="mt-4 space-y-2">
-        <p className="text-sm text-white/70">
-          Your contribution in this campaign:{" "}
-          <span className="text-white">{myContributionEth.toFixed(6)} ETH</span>
-        </p>
+          <CampaignUpdates campaignId={campaignId} isOwner={isOwner} />
+        </section>
 
-        {!!myTxs.length && (
-          <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-            <div className="text-xs text-white/60 mb-2">Your contribution history</div>
-            <div className="space-y-1">
-              {myTxs.slice(0, 6).map((x, i) => (
-                <div key={i} className="text-sm text-white/80">
-                  + {x.amountEth.toFixed(6)} ETH{" "}
-                  <span className="text-white/40">(block {x.blockNumber.toString()})</span>
+        {/* RIGHT */}
+        <aside className="space-y-4">
+          <div className="card card-hover">
+            <div className="space-y-3">
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-sm text-white/60">Pledged</div>
+                  <div className="text-2xl font-bold">{raisedAnim.toFixed(4)} ETH</div>
+                  <div className="text-sm text-white/50">
+                    {raisedUsd !== null ? formatUsd(raisedUsd) : "USD loading…"}
+                  </div>
                 </div>
-              ))}
+
+                <div className="text-right">
+                  <div className="text-sm text-white/60">Goal</div>
+                  <div className="text-lg font-semibold">{goalEth.toFixed(4)} ETH</div>
+                  <div className="text-sm text-white/50">
+                    {goalUsd !== null ? formatUsd(goalUsd) : "—"}
+                  </div>
+                </div>
+              </div>
+
+              <ProgressBar percent={percentAnim} />
+              <div className="flex items-center justify-between text-sm text-white/60">
+                <span>{percentAnim.toFixed(0)}%</span>
+                <span>
+                  {ended ? "Ended" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`}
+                </span>
+              </div>
+
+              <Milestones percent={safePercent} />
+
+              <div className="pt-3 border-t border-white/10 text-sm text-white/60 space-y-2">
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <span>
+                    {!c.approved ? (
+                      <span className="text-yellow-300">Pending</span>
+                    ) : c.held ? (
+                      <span className="text-yellow-300">Held</span>
+                    ) : (
+                      <span className="text-green-400">Approved</span>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Owner</span>
+                  <span className="text-white/80 truncate max-w-[180px]">
+                    {c.owner}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* CTA */}
+            <div className="mt-4 space-y-3">
+              {!ended && c.approved && !c.held && (
+                <div className="space-y-2">
+                  <div className="text-sm text-white/70">
+                    Your contribution:{" "}
+                    <span className="text-white">{myContributionEth.toFixed(6)} ETH</span>{" "}
+                    <span className="text-white/50">
+                      {myUsd !== null ? `(${formatUsd(myUsd)})` : ""}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      value={amountEth}
+                      onChange={(e) => setAmountEth(e.target.value)}
+                      className="input"
+                    />
+                    <button
+                      disabled={isPending}
+                      onClick={handleContribute}
+                      className="btn-primary whitespace-nowrap"
+                    >
+                      {isPending ? "Sending…" : "Contribute"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2">
+                {c.approved && (
+                  <button disabled={isPending} onClick={handleReport} className="btn">
+                    {isPending ? "Reporting…" : "Report campaign"}
+                  </button>
+                )}
+
+                {ended && !success && (myContribution ?? 0n) > 0n && (
+                  <button onClick={handleRefund} className="btn">
+                    Claim refund
+                  </button>
+                )}
+
+                {isOwner && success && !c.withdrawn && (
+                  <button
+                    disabled={isPending}
+                    onClick={handleWithdraw}
+                    className="btn-primary"
+                  >
+                    {isPending ? "Withdrawing…" : "Withdraw funds"}
+                  </button>
+                )}
+
+                {isOwner && success && c.withdrawn && (
+                  <div className="text-sm text-green-300">✅ Funds withdrawn</div>
+                )}
+              </div>
             </div>
           </div>
-        )}
 
-        <div className="flex gap-3 items-center flex-wrap">
-          {!ended && c.approved && !c.held && (
-            <>
-              <input
-                type="number"
-                min={0}
-                step="0.001"
-                value={amountEth}
-                onChange={(e) => setAmountEth(e.target.value)}
-                className="px-3 py-2 rounded bg-white/10 border border-white/20 text-sm"
-              />
-              <button
-                disabled={isPending}
-                onClick={handleContribute}
-                className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/60 text-sm"
-              >
-                {isPending ? "Sending…" : "Contribute"}
-              </button>
-            </>
-          )}
+          {/* Stats */}
+          <div className="grid grid-cols-1 gap-3">
+            <div className="card">
+              <div className="text-xs text-white/60">Backers (estimated)</div>
+              <div className="text-2xl font-bold">{backersCount ?? "—"}</div>
+            </div>
 
-          {c.approved && (
-            <button
-              disabled={isPending}
-              onClick={handleReport}
-              className="px-4 py-2 rounded bg-yellow-600/70 hover:bg-yellow-600 disabled:opacity-60 text-sm"
-            >
-              {isPending ? "Reporting…" : "Report campaign"}
-            </button>
-          )}
+            <div className="card">
+              <div className="text-xs text-white/60">Avg contribution</div>
+              <div className="text-2xl font-bold">
+                {avgContributionEth === null ? "—" : `${avgContributionEth.toFixed(4)} ETH`}
+              </div>
+              <div className="text-sm text-white/50">
+                {avgUsd !== null ? formatUsd(avgUsd) : ""}
+              </div>
+            </div>
 
-          {ended && !success && (myContribution ?? 0n) > 0n && (
-            <button
-              onClick={handleRefund}
-              className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-sm"
-            >
-              Claim refund
-            </button>
-          )}
+            <div className="card">
+              <div className="text-xs text-white/60">Reports</div>
+              <div className="text-2xl font-bold">{Number(c.reports)}</div>
+            </div>
 
-          {isOwner && success && !c.withdrawn && (
-            <button
-              disabled={isPending}
-              onClick={handleWithdraw}
-              className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 disabled:opacity-60 text-sm"
-            >
-              {isPending ? "Withdrawing…" : "Withdraw funds"}
-            </button>
-          )}
-
-          {isOwner && success && c.withdrawn && (
-            <span className="text-sm text-green-300">✅ Funds withdrawn</span>
-          )}
-          {isOwner && !success && !ended && (
-            <span className="text-sm text-white/50">Waiting deadline / goal…</span>
-          )}
-        </div>
+            {!!myTxs.length && (
+              <div className="card">
+                <div className="text-xs text-white/60 mb-2">Your contribution history</div>
+                <div className="space-y-1">
+                  {myTxs.slice(0, 6).map((x, i) => (
+                    <div key={i} className="text-sm text-white/80">
+                      + {x.amountEth.toFixed(6)} ETH{" "}
+                      <span className="text-white/40">
+                        (block {x.blockNumber.toString()})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
       </div>
-
-      {/* #9 updates */}
-      <CampaignUpdates campaignId={campaignId} isOwner={isOwner} />
     </div>
   );
 }

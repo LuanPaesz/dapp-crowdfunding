@@ -2,15 +2,79 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer components {
-  /* utilitários simples usados na UI */
-  .input {
-    @apply w-full border rounded-xl px-3 py-2;
-  }
+/* =========================
+   THEME (dark harmonic)
+========================= */
+:root {
+  --bg: #0b0c10;        /* fundo (não é preto puro) */
+  --surface: #12131a;   /* cards */
+  --surface2: #161823;  /* inputs */
+  --border: #24263a;
 
-  .btn {
-    @apply border rounded-xl px-3 py-2 hover:bg-gray-100;
-  }
+  --text: #e9e9f1;
+  --muted: #a6a7b3;
+
+  --primary: #8b5cf6;
+  --primaryHover: #7c3aed;
+  --primarySoft: rgba(139, 92, 246, 0.18);
 }
 
-/* outras regras ou imports abaixo, se precisar */
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* =========================
+   COMPONENT CLASSES
+========================= */
+@layer components {
+  /* Input padrão dark */
+  .input {
+    @apply w-full rounded-xl px-3 py-2 outline-none transition;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .input::placeholder {
+    color: color-mix(in srgb, var(--muted) 75%, transparent);
+  }
+  .input:focus {
+    box-shadow: 0 0 0 3px var(--primarySoft);
+    border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
+  }
+
+  /* Botão padrão */
+  .btn {
+    @apply rounded-xl px-4 py-2 font-semibold transition;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+  }
+  .btn:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  }
+
+  /* Botão primário roxo */
+  .btn-primary {
+    @apply rounded-xl px-4 py-2 font-semibold transition text-white;
+    background: var(--primary);
+    border: 1px solid transparent;
+    box-shadow: 0 10px 24px rgba(139, 92, 246, 0.2);
+  }
+  .btn-primary:hover {
+    background: var(--primaryHover);
+  }
+
+  /* Card padrão */
+  .card {
+    @apply rounded-2xl p-5 transition;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+  }
+  .card-hover:hover {
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.25), 0 18px 40px rgba(0, 0, 0, 0.45);
+    border-color: rgba(139, 92, 246, 0.35);
+  }
+}

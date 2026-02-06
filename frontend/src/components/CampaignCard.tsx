@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatUnits } from "viem";
+import { useEthUsdPrice, formatUsd } from "../lib/pricing";
 
 // =========================================================
 // Helpers para mídia (imagem / YouTube)
@@ -35,7 +36,7 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
   if (ytId) {
     const embedUrl = `https://www.youtube.com/embed/${ytId}`;
     return (
-      <div className="w-full aspect-video rounded-t-xl overflow-hidden bg-black">
+      <div className="w-full aspect-video rounded-t-2xl overflow-hidden bg-black">
         <iframe
           src={embedUrl}
           title={title}
@@ -49,7 +50,7 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
 
   if (isImageUrl(media)) {
     return (
-      <div className="w-full aspect-video rounded-t-xl overflow-hidden bg-black">
+      <div className="w-full aspect-video rounded-t-2xl overflow-hidden bg-black">
         <img src={media} alt={title} className="w-full h-full object-cover" />
       </div>
     );
@@ -59,7 +60,7 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
 }
 
 // =========================================================
-// Hook: anima número quando valor muda (#6)
+// Hook: anima número quando valor muda
 // =========================================================
 function useAnimatedNumber(value: number, durationMs = 500) {
   const [display, setDisplay] = useState(value);
@@ -111,15 +112,19 @@ type Campaign = {
 };
 
 // =========================================================
-// UI: progress + milestones (#7)
+// UI: progress + milestones
 // =========================================================
 function ProgressBar({ percent }: { percent: number }) {
   const safe = Math.max(0, Math.min(100, percent));
   return (
-    <div className="w-full bg-white/10 rounded h-3 overflow-hidden">
+    <div className="w-full rounded-full overflow-hidden bg-white/10 h-2">
       <div
-        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
-        style={{ width: `${safe}%` }}
+        className="h-full transition-all duration-500"
+        style={{
+          width: `${safe}%`,
+          background:
+            "linear-gradient(90deg, rgba(139,92,246,1) 0%, rgba(236,72,153,1) 100%)",
+        }}
       />
     </div>
   );
@@ -159,6 +164,8 @@ function Milestones({ percent }: { percent: number }) {
 export default function CampaignCard({ id, camp }: { id: number; camp: Campaign }) {
   const navigate = useNavigate();
 
+  const ethUsd = useEthUsdPrice();
+
   const goalEth = Number(formatUnits(camp.goal, 18));
   const raisedEth = Number(formatUnits(camp.totalRaised, 18));
 
@@ -168,8 +175,11 @@ export default function CampaignCard({ id, camp }: { id: number; camp: Campaign 
   const secsLeft = Number(camp.deadline) - nowSec;
   const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / 86400) : 0;
 
-  // #6: número animado
+  // número animado
   const raisedAnim = useAnimatedNumber(raisedEth, 500);
+
+  const raisedUsd = ethUsd ? raisedAnim * ethUsd : null;
+  const goalUsd = ethUsd ? goalEth * ethUsd : null;
 
   // status
   let statusLabel = "Active";
@@ -196,31 +206,43 @@ export default function CampaignCard({ id, camp }: { id: number; camp: Campaign 
 
   return (
     <div
-      className="bg-white/5 rounded-xl overflow-hidden hover:scale-[1.01] transition cursor-pointer flex flex-col"
+      className="card card-hover overflow-hidden cursor-pointer flex flex-col p-0"
       onClick={() => navigate(`/campaign/${id}`)}
     >
       <MediaPreview media={camp.media} title={camp.title} />
 
-      <div className="p-4 flex flex-col gap-3 flex-1">
-        <div className="flex justify-between items-start gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-white">{camp.title}</h3>
+      <div className="p-5 flex flex-col gap-3 flex-1">
+        <div className="flex justify-between items-start gap-4">
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-white truncate">{camp.title}</h3>
             <p className="text-sm text-white/60 mt-1 line-clamp-2">
               {camp.description}
             </p>
           </div>
 
-          <div className="text-right text-sm">
-            <p className="text-white/80">
+          <div className="text-right text-sm shrink-0">
+            <p className="text-white/90 font-semibold">
               {raisedAnim.toFixed(4)} / {goalEth.toFixed(4)} ETH
             </p>
-            <p className="text-white/50">{Math.max(0, Math.min(100, percent))}%</p>
+
+            {/* USD */}
+            <p className="text-white/50">
+              {raisedUsd !== null && goalUsd !== null ? (
+                <>
+                  {formatUsd(raisedUsd)} / {formatUsd(goalUsd)}
+                </>
+              ) : (
+                "USD loading…"
+              )}
+            </p>
+
+            <p className="text-white/50 mt-1">
+              {Math.max(0, Math.min(100, percent))}%
+            </p>
           </div>
         </div>
 
-        {/* #7 milestones */}
         <Milestones percent={percent} />
-
         <ProgressBar percent={percent} />
 
         <div className="flex items-center justify-between text-sm">

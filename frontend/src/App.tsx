@@ -11,15 +11,12 @@ import CampaignDetail from "./pages/CampaignDetail";
 import Admin from "./pages/Admin";
 import Audit from "./pages/Audit";
 
-
-
 export default function App() {
   return (
     <div className="min-h-screen bg-[#0b0b0b] text-white">
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-
         <Routes>
           {/* Redirect root → explore */}
           <Route path="/" element={<Navigate to="/explore" replace />} />
@@ -35,17 +32,13 @@ export default function App() {
           <Route path="/campaign/:id" element={<CampaignDetail />} />
           <Route path="/campaign/:id/edit" element={<CampaignEdit />} />
 
-          {/* Admin only */}
+          {/* Admin + Audit */}
           <Route path="/admin" element={<Admin />} />
-          
-
-          
           <Route path="/audit" element={<Audit />} />
 
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/explore" replace />} />
         </Routes>
-
       </main>
     </div>
   );

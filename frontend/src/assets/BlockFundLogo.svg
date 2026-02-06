@@ -1,0 +1,28 @@
+<svg width="220" height="48" viewBox="0 0 220 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8B5CF6"></stop>
+      <stop offset="1" stop-color="#7C3AED"></stop>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.5" result="b"></feGaussianBlur>
+      <feMerge>
+        <feMergeNode in="b"></feMergeNode>
+        <feMergeNode in="SourceGraphic"></feMergeNode>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Icon -->
+  <g filter="url(#glow)">
+    <path d="M24 6C14.611 6 7 13.611 7 23C7 32.389 14.611 40 24 40C33.389 40 41 32.389 41 23C41 13.611 33.389 6 24 6Z" fill="url(#g)" fill-opacity="0.18"></path>
+    <path d="M24 9.5L34 15.3V26.7L24 32.5L14 26.7V15.3L24 9.5Z" fill="url(#g)"></path>
+    <path d="M24 13.2L30.5 16.9V24.9L24 28.6L17.5 24.9V16.9L24 13.2Z" fill="#0B0C10" opacity="0.55"></path>
+    <path d="M17.5 16.9L24 20.6L30.5 16.9" stroke="#E9E9F1" stroke-opacity="0.35" stroke-width="1.2" stroke-linecap="round"></path>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="56" y="31" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial" font-size="20" font-weight="700" fill="#E9E9F1">
+    Block<tspan fill="#8B5CF6">Fund</tspan>
+  </text>
+</svg>
