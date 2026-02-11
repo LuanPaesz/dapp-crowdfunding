@@ -169,7 +169,7 @@ sequenceDiagram
             <div className="text-sm font-semibold">Cofounder</div>
             <div className="mt-3 flex items-center gap-3">
               <div className="h-12 w-12 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
-                <span className="text-purple-300 font-bold">S</span>
+                <span className="text-purple-300 font-bold">L</span>
               </div>
               <div>
                 <div className="text-sm font-semibold">Luan Paes</div>

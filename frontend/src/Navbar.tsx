@@ -1,7 +1,6 @@
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useReadContract } from "wagmi";
-import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./lib/contract";
+import { useAccount } from "wagmi";
 import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -12,23 +11,11 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Admin from .env
+  // Admin from .env (fonte única e estável)
   const envAdmin = import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase() ?? null;
-
-  // Admin from contract
-  const { data: contractAdmin } = useReadContract({
-    address: CROWDFUND_ADDRESS,
-    abi: CROWDFUND_ABI,
-    functionName: "admin",
-  }) as { data?: string };
-
   const lowerAddr = address?.toLowerCase();
-  const onChainAdmin = contractAdmin?.toLowerCase();
 
-  const isAdmin =
-    !!lowerAddr &&
-    (lowerAddr === envAdmin ||
-      (onChainAdmin && lowerAddr === onChainAdmin));
+  const isAdmin = !!lowerAddr && !!envAdmin && lowerAddr === envAdmin;
 
   const items = [
     { to: "/create", label: "Create" },
@@ -42,7 +29,6 @@ export default function Navbar() {
   // ---- Search state (navbar) ----
   const [q, setQ] = useState("");
 
-  // Mantém o input sincronizado com a URL
   useEffect(() => {
     const sp = new URLSearchParams(location.search);
     setQ(sp.get("q") ?? "");
@@ -57,12 +43,8 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[rgba(11,12,16,.75)] backdrop-blur">
       <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-4">
-
         {/* LOGO */}
-        <Link
-          to="/explore"
-          className="flex items-center -ml-3 -mt-1 shrink-0"
-        >
+        <Link to="/explore" className="flex items-center -ml-3 -mt-1 shrink-0">
           <img
             src={Logo}
             alt="BlockFund"
@@ -79,7 +61,6 @@ export default function Navbar() {
                 className={({ isActive }) =>
                   [
                     "px-3 py-1.5 rounded-xl text-sm transition whitespace-nowrap",
-
                     isActive
                       ? "bg-white/10 text-white"
                       : "text-white/70 hover:text-white hover:bg-white/5",
@@ -92,11 +73,8 @@ export default function Navbar() {
           ))}
         </ul>
 
-        {/* SEARCH (navbar, compacta, profissional) */}
-        <form
-          onSubmit={submitSearch}
-          className="ml-auto hidden lg:flex items-center"
-        >
+        {/* SEARCH */}
+        <form onSubmit={submitSearch} className="ml-auto hidden lg:flex items-center">
           <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 w-[220px]">
             <Search className="w-4 h-4 text-white/60" />
             <input
