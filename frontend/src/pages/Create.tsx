@@ -5,6 +5,17 @@ import { useAccount, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
+function prettifyError(err: any) {
+  return (
+    err?.shortMessage ||
+    err?.cause?.shortMessage ||
+    err?.details ||
+    err?.cause?.details ||
+    err?.message ||
+    "Transaction failed."
+  );
+}
+
 export default function Create() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -14,7 +25,7 @@ export default function Create() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("0");
-  const [durationDays, setDurationDays] = useState<number>(0);
+  const [durationDays, setDurationDays] = useState<number>(1);
   const [mediaUrl, setMediaUrl] = useState("");
   const [projectLink, setProjectLink] = useState("");
 
@@ -41,7 +52,7 @@ export default function Create() {
       if (!Number.isNaN(deadlineNum) && deadlineNum > 0) {
         const nowSec = Math.floor(Date.now() / 1000);
         const secs = Math.max(0, deadlineNum - nowSec);
-        const days = Math.ceil(secs / (60 * 60 * 24));
+        const days = Math.max(1, Math.ceil(secs / (60 * 60 * 24)));
         setDurationDays(days);
       }
     }
@@ -50,6 +61,7 @@ export default function Create() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
+    setTxHash(null);
 
     if (!isConnected || !address) {
       setErrorMsg("Please connect your wallet first.");
@@ -64,13 +76,14 @@ export default function Create() {
       return;
     }
 
-    let goalWei: bigint | null = null;
+    let goalWei: bigint;
     try {
       goalWei = parseEther(goal);
     } catch {
-      goalWei = null;
+      setErrorMsg("Goal must be a valid ETH number (e.g., 0.1).");
+      return;
     }
-    if (!goalWei || goalWei <= 0n) {
+    if (goalWei <= 0n) {
       setErrorMsg("Goal must be greater than 0.");
       return;
     }
@@ -97,14 +110,15 @@ export default function Create() {
       });
 
       setTxHash(hash);
+
       setTitle("");
       setDescription("");
       setGoal("0");
-      setDurationDays(0);
+      setDurationDays(1);
       setMediaUrl("");
       setProjectLink("");
     } catch (err: any) {
-      setErrorMsg(err?.shortMessage || err?.message || "Transaction failed.");
+      setErrorMsg(prettifyError(err));
     }
   }
 

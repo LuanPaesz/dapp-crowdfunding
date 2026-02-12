@@ -13,7 +13,6 @@ export const hardhatRemote = defineChain({
     default: { http: [rpcUrl] },
     public: { http: [rpcUrl] },
   },
-  // Explorer não existe pra Hardhat; deixa algo neutro
   blockExplorers: {
     default: { name: "None", url: "about:blank" },
   },
