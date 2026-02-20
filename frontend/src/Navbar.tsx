@@ -11,22 +11,21 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Admin from .env (fonte única e estável)
   const envAdmin = import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase() ?? null;
   const lowerAddr = address?.toLowerCase();
-
   const isAdmin = !!lowerAddr && !!envAdmin && lowerAddr === envAdmin;
 
   const items = [
     { to: "/create", label: "Create" },
     { to: "/explore", label: "Explore" },
+    { to: "/campaigns", label: "Campaigns" },
     { to: "/mycontributions", label: "Contributions" },
     { to: "/mycampaigns", label: "My Campaigns" },
     { to: "/audit", label: "Audit" },
+    { to: "/settings", label: "Settings" },
     ...(isAdmin ? [{ to: "/admin", label: "Admin" }] : []),
   ];
 
-  // ---- Search state (navbar) ----
   const [q, setQ] = useState("");
 
   useEffect(() => {
@@ -37,13 +36,12 @@ export default function Navbar() {
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     const value = q.trim();
-    navigate(value ? `/explore?q=${encodeURIComponent(value)}` : "/explore");
+    navigate(value ? `/campaigns?q=${encodeURIComponent(value)}` : "/campaigns");
   }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[rgba(11,12,16,.75)] backdrop-blur">
       <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center gap-4">
-        {/* LOGO */}
         <Link to="/explore" className="flex items-center -ml-3 -mt-1 shrink-0">
           <img
             src={Logo}
@@ -52,7 +50,6 @@ export default function Navbar() {
           />
         </Link>
 
-        {/* MENU */}
         <ul className="hidden md:flex items-center gap-2">
           {items.map((it) => (
             <li key={it.to}>
@@ -73,9 +70,8 @@ export default function Navbar() {
           ))}
         </ul>
 
-        {/* SEARCH */}
         <form onSubmit={submitSearch} className="ml-auto hidden lg:flex items-center">
-          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 w-[220px]">
+          <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 w-[240px]">
             <Search className="w-4 h-4 text-white/60" />
             <input
               value={q}
@@ -86,7 +82,6 @@ export default function Navbar() {
           </div>
         </form>
 
-        {/* WALLET */}
         <div className="shrink-0">
           <ConnectButton showBalance />
         </div>

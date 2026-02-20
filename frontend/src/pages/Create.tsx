@@ -1,8 +1,8 @@
-// frontend/src/pages/Create.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
+import { CircleCheck, CircleX, Info, Sparkles } from "lucide-react";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 function prettifyError(err: any) {
@@ -79,9 +79,6 @@ export default function Create() {
     setInfoMsg(null);
     setTxHash(null);
 
-    console.log("[Create] submit ✅");
-    console.log("[Create] connected:", isConnected, "address:", address, "chain:", chain?.id);
-
     if (!isConnected || !address) {
       setErrorMsg("Please connect your wallet first.");
       return;
@@ -114,8 +111,6 @@ export default function Create() {
       return;
     }
 
-    // contract expects 6 args:
-    // (title, description, media, projectLink, goalWei, durationDays)
     const args = [
       clean.title,
       clean.description,
@@ -124,9 +119,6 @@ export default function Create() {
       goalWei,
       BigInt(clean.duration),
     ] as const;
-
-    console.log("[Create] contract:", CROWDFUND_ADDRESS);
-    console.log("[Create] args:", args);
 
     // 1) SIMULATE
     try {
@@ -137,9 +129,7 @@ export default function Create() {
         args,
         account: address,
       });
-      console.log("[Create] simulate OK ✅");
     } catch (simErr: any) {
-      console.log("[Create] simulate ERROR:", simErr);
       setErrorMsg(`Simulation failed: ${prettifyError(simErr)}`);
       return;
     }
@@ -151,17 +141,15 @@ export default function Create() {
         abi: CROWDFUND_ABI,
         functionName: "createCampaign",
         args,
-        // gas manual ajuda em hardhat remoto
         gas: 1_500_000n,
       });
 
       setTxHash(hash);
-      setInfoMsg("⛏️ Transaction sent. Waiting for confirmation...");
+      setInfoMsg("Transaction sent. Waiting for confirmation…");
 
-      // ✅ importante: espera minerar para evitar “campanha fantasma” no UI
       await publicClient.waitForTransactionReceipt({ hash });
 
-      setInfoMsg("✅ Campaign created successfully!");
+      setInfoMsg("Campaign created successfully!");
 
       setTitle("");
       setDescription("");
@@ -170,115 +158,169 @@ export default function Create() {
       setMediaUrl("");
       setProjectLink("");
     } catch (err: any) {
-      console.log("[Create] WRITE ERROR:", err);
       setErrorMsg(prettifyError(err));
     }
   }
 
+  const inputBase =
+    "w-full mt-1 p-2.5 rounded-xl bg-white/5 border border-white/10 outline-none " +
+    "focus:border-purple-500/40 focus:ring-2 focus:ring-purple-500/15 transition";
+
   return (
-    <div className="max-w-2xl mx-auto bg-[#1a1a1a] border border-[#333] rounded-lg p-8 shadow-lg">
-      <h2 className="text-2xl font-bold mb-4 text-white">Create Campaign</h2>
+    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/7 to-black/25 p-6">
+      <div className="pointer-events-none absolute -top-28 -left-24 h-72 w-72 rounded-full bg-purple-500/18 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-28 -right-24 h-72 w-72 rounded-full bg-fuchsia-500/12 blur-3xl" />
 
-      <form onSubmit={onSubmit} className="space-y-4 text-white">
-        <div>
-          <label className="block text-sm text-gray-300">Title</label>
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-          />
-        </div>
+      <div className="flex flex-col lg:flex-row gap-6 relative">
+        {/* FORM */}
+        <div className="flex-1 rounded-3xl border border-white/10 bg-white/5 p-6 relative overflow-hidden">
+          <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
 
-        <div>
-          <label className="block text-sm text-gray-300">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-          />
-        </div>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+                <Sparkles className="w-3.5 h-3.5" />
+                Create on-chain campaign
+              </div>
+              <h2 className="text-2xl font-bold mt-3">Create Campaign</h2>
+              <p className="text-sm text-white/60 mt-1">
+                All campaign data is stored on-chain for transparency.
+              </p>
+            </div>
 
-        <div>
-          <label className="block text-sm text-gray-300">Media URL (image or video)</label>
-          <input
-            value={mediaUrl}
-            onChange={(e) => setMediaUrl(e.target.value)}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            placeholder="https://..."
-          />
-          <p className="text-xs text-gray-400 mt-1">Stored on-chain as metadata (string).</p>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-300">Project link (GitHub / Website)</label>
-          <input
-            value={projectLink}
-            onChange={(e) => setProjectLink(e.target.value)}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            placeholder="https://..."
-          />
-          <p className="text-xs text-gray-400 mt-1">Stored on-chain as metadata (string).</p>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-300">Goal (ETH)</label>
-          <input
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            type="number"
-            min="0"
-            step="0.001"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-300">Duration (days)</label>
-          <input
-            type="number"
-            value={durationDays}
-            onChange={(e) => setDurationDays(Number(e.target.value))}
-            className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            min="1"
-          />
-        </div>
-
-        {errorMsg && (
-          <div className="text-red-400 text-sm bg-red-950/40 border border-red-800 rounded px-3 py-2">
-            {errorMsg}
+            <div className="text-xs text-white/50">
+              {chain?.name ? (
+                <>
+                  Network: <span className="text-white/70">{chain.name}</span>
+                </>
+              ) : (
+                <>Network: <span className="text-white/70">Not selected</span></>
+              )}
+            </div>
           </div>
-        )}
 
-        {infoMsg && (
-          <div className="text-blue-200 text-sm bg-blue-950/30 border border-blue-800 rounded px-3 py-2">
-            {infoMsg}
-          </div>
-        )}
+          <form onSubmit={onSubmit} className="space-y-4 text-white mt-6">
+            <div>
+              <label className="block text-sm text-white/70">Title</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputBase} />
+            </div>
 
-        {txHash && (
-          <div className="text-green-400 text-sm bg-green-950/30 border border-green-800 rounded px-3 py-2 break-all">
-            ✅ Transaction: {txHash}
-          </div>
-        )}
+            <div>
+              <label className="block text-sm text-white/70">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className={inputBase + " min-h-[110px] resize-y"}
+              />
+            </div>
 
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={isPending}
-            className="px-4 py-2 rounded bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50"
-          >
-            {isPending ? "Creating..." : "Create"}
-          </button>
+            <div>
+              <label className="block text-sm text-white/70">Media URL (image or YouTube)</label>
+              <input
+                value={mediaUrl}
+                onChange={(e) => setMediaUrl(e.target.value)}
+                className={inputBase}
+                placeholder="https://..."
+              />
+              <p className="text-xs text-white/45 mt-1">Saved on-chain as metadata (string).</p>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-800"
-          >
-            Cancel
-          </button>
+            <div>
+              <label className="block text-sm text-white/70">Project link (GitHub / Website)</label>
+              <input
+                value={projectLink}
+                onChange={(e) => setProjectLink(e.target.value)}
+                className={inputBase}
+                placeholder="https://..."
+              />
+              <p className="text-xs text-white/45 mt-1">Saved on-chain as metadata (string).</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-white/70">Goal (ETH)</label>
+                <input
+                  value={goal}
+                  onChange={(e) => setGoal(e.target.value)}
+                  className={inputBase}
+                  type="number"
+                  min="0"
+                  step="0.001"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-white/70">Duration (days)</label>
+                <input
+                  type="number"
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(Number(e.target.value))}
+                  className={inputBase}
+                  min="1"
+                />
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div className="text-red-200 text-sm bg-red-950/35 border border-red-800/60 rounded-xl px-3 py-2 flex items-start gap-2">
+                <CircleX className="w-4 h-4 mt-0.5" />
+                <div>{errorMsg}</div>
+              </div>
+            )}
+
+            {infoMsg && (
+              <div className="text-purple-100 text-sm bg-purple-950/25 border border-purple-700/30 rounded-xl px-3 py-2 flex items-start gap-2">
+                <Info className="w-4 h-4 mt-0.5" />
+                <div>{infoMsg}</div>
+              </div>
+            )}
+
+            {txHash && (
+              <div className="text-green-200 text-sm bg-green-950/25 border border-green-800/40 rounded-xl px-3 py-2 break-all flex items-start gap-2">
+                <CircleCheck className="w-4 h-4 mt-0.5" />
+                <div>
+                  Transaction: <span className="text-green-100">{txHash}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={isPending}
+                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 transition shadow-[0_0_22px_rgba(139,92,246,0.25)]"
+              >
+                {isPending ? "Creating..." : "Create"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
-      </form>
+
+        {/* TIPS */}
+        <aside className="w-full lg:w-[360px]">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 relative overflow-hidden">
+            <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
+            <div className="text-sm font-semibold">Tips for a great campaign</div>
+            <ul className="mt-3 text-sm text-white/70 space-y-2 list-disc pl-5">
+              <li>Use a clear title (what you’re building + why it matters).</li>
+              <li>Add a media link (image/YouTube) to improve trust.</li>
+              <li>Set a realistic goal and deadline for your target audience.</li>
+              <li>Include a GitHub/website link for credibility and verification.</li>
+            </ul>
+            <div className="mt-4 text-xs text-white/50">
+              Note: campaigns may require admin approval before appearing publicly (depending on configuration).
+            </div>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

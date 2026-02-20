@@ -1,4 +1,3 @@
-// frontend/src/pages/Admin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -17,13 +16,11 @@ type Campaign = {
   description: string;
   media?: string;
   projectLink?: string;
-
   goal: bigint;
   deadline: bigint;
   totalRaised: bigint;
   withdrawn: boolean;
   exists: boolean;
-
   approved: boolean;
   held: boolean;
   reports: bigint;
@@ -52,7 +49,6 @@ export default function Admin() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
-  // ---- admin checks ----
   const envAdmin = (import.meta.env.VITE_ADMIN_ADDRESS || "").toLowerCase();
 
   const { data: contractAdmin } = useReadContract({
@@ -68,7 +64,6 @@ export default function Admin() {
     return me === envAdmin || (!!onchain && me === onchain);
   }, [address, contractAdmin, envAdmin]);
 
-  // ---- load nextId ----
   const { data: nextId } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
@@ -78,7 +73,6 @@ export default function Admin() {
 
   const count = Number(nextId ?? 0n);
 
-  // ---- build read calls ----
   const calls = useMemo(() => {
     if (!count || count <= 0) return [];
     return Array.from({ length: count }, (_, id) => ({
@@ -89,7 +83,6 @@ export default function Admin() {
     }));
   }, [count]);
 
-  // ---- batch read ----
   const { data } = useReadContracts({
     contracts: calls,
     allowFailure: true,
@@ -116,26 +109,11 @@ export default function Admin() {
     [existing]
   );
 
-  // ✅ LOGS (sem loop infinito)
   useEffect(() => {
-    console.log("[Admin] env:", import.meta.env.VITE_CROWDFUND_ADDRESS);
-    console.log("[Admin] const:", CROWDFUND_ADDRESS);
+    // Debug only (no UI exposure)
     console.log("[Admin] nextId:", nextId?.toString?.(), "count:", count);
-    console.log("[Admin] calls:", calls);
-    console.log("[Admin] data:", data);
-    console.log("[Admin] rows:", rows);
-    console.log("[Admin] existing:", existing);
+  }, [nextId, count]);
 
-    // extra: se o primeiro retorno falhar, mostra o erro
-    if (data?.[0]?.status === "failure") {
-      console.log("[Admin] getCampaign(0) failure:", data[0].error);
-    }
-    if (data?.[0]?.status === "success") {
-      console.log("[Admin] getCampaign(0) raw:", data[0].result);
-    }
-  }, [nextId, count, calls, data, rows, existing]);
-
-  // ---- actions ----
   async function setApproval(id: number, val: boolean) {
     setErrorMsg(null);
     setInfoMsg(null);
@@ -188,15 +166,14 @@ export default function Admin() {
     }
   }
 
-  // ---- tabs ----
   const TabBtn = ({ k, label }: { k: TabKey; label: string }) => (
     <button
       onClick={() => setTab(k)}
       className={
-        "px-4 py-2 rounded-lg text-sm border " +
+        "px-4 py-2 rounded-xl text-sm border transition " +
         (tab === k
-          ? "bg-white/10 border-white/20 text-white"
-          : "bg-transparent border-white/10 text-white/60 hover:text-white hover:bg-white/5")
+          ? "bg-purple-500/15 border-purple-500/25 text-white shadow-[0_0_18px_rgba(139,92,246,0.15)]"
+          : "bg-white/5 border-white/10 text-white/65 hover:text-white hover:bg-white/10")
       }
     >
       {label}
@@ -216,39 +193,45 @@ export default function Admin() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">Admin</h1>
-          <p className="text-white/60 text-sm">
-            Review campaigns, manage reports, and place campaigns on hold.
-          </p>
-          <p className="text-white/40 text-xs mt-2">
-            Contract: {CROWDFUND_ADDRESS} <br />
-            nextId: {String(nextId ?? 0n)}
-          </p>
-        </div>
+      {/* HEADER (purple life) */}
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-purple-500/14 via-white/6 to-black/25 p-6">
+        <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-purple-500/22 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 -right-28 h-72 w-72 rounded-full bg-fuchsia-500/12 blur-3xl" />
 
-        <div className="flex gap-2">
-          <TabBtn k="admin" label="Admin Panel" />
-          <TabBtn k="finance" label="Finance Panel" />
+        <div className="flex items-start justify-between gap-4 flex-wrap relative">
+          <div>
+            <h1 className="text-2xl font-bold">Admin</h1>
+            <p className="text-white/65 text-sm">
+              Review campaigns, manage reports, and place campaigns on hold.
+            </p>
+            {/* ✅ Do NOT show contract / nextId in the UI */}
+          </div>
+
+          <div className="flex gap-2">
+            <TabBtn k="admin" label="Admin Panel" />
+            <TabBtn k="finance" label="Finance Panel" />
+          </div>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="text-sm text-red-300 bg-red-950/40 border border-red-800 rounded px-3 py-2">
+        <div className="text-sm text-red-300 bg-red-950/40 border border-red-800/60 rounded-xl px-3 py-2">
           {errorMsg}
         </div>
       )}
       {infoMsg && (
-        <div className="text-sm text-green-300 bg-green-950/30 border border-green-800 rounded px-3 py-2 break-all">
+        <div className="text-sm text-green-300 bg-green-950/30 border border-green-800/60 rounded-xl px-3 py-2 break-all">
           {infoMsg}
         </div>
       )}
 
       {tab === "admin" && (
         <div className="space-y-6">
-          {/* Reported campaigns */}
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+          {/* Reported campaigns (add purple life like your screenshot) */}
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-purple-500/10 via-white/6 to-black/25 p-5">
+            <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-fuchsia-500/10 blur-3xl" />
+
             <h2 className="text-lg font-semibold">Reported campaigns</h2>
             <p className="text-sm text-white/60 mb-3">
               Campaigns with at least 1 report.
@@ -275,7 +258,7 @@ export default function Admin() {
                       <td className="p-3 rounded-r-xl">
                         <button
                           onClick={() => navigate(`/campaign/${id}`)}
-                          className="px-3 py-1 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-xs"
+                          className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs"
                         >
                           Open
                         </button>
@@ -287,16 +270,25 @@ export default function Admin() {
             )}
           </div>
 
-          {/* Approval queue */}
-          <div className="space-y-2">
-            <h2 className="text-lg font-semibold">Approval queue</h2>
+          {/* Approval queue (already has purple in your screenshot; keep consistent) */}
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-purple-500/10 via-white/6 to-black/25 p-5">
+            <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-purple-500/18 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-28 -left-24 h-72 w-72 rounded-full bg-fuchsia-500/10 blur-3xl" />
+
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Approval queue</h2>
+                <p className="text-sm text-white/60">
+                  Pending campaigns require approval before appearing publicly.
+                </p>
+              </div>
+              <div className="text-xs text-white/50">Created campaigns: {count}</div>
+            </div>
 
             {!pending.length ? (
-              <p className="text-white/60 text-sm">
-                No pending campaigns. (Created: {count})
-              </p>
+              <p className="text-white/60 text-sm mt-3">No pending campaigns.</p>
             ) : (
-              <table className="w-full text-sm border-separate border-spacing-y-2">
+              <table className="w-full text-sm border-separate border-spacing-y-2 mt-3">
                 <thead>
                   <tr className="text-white/60">
                     <th className="text-left">#</th>
@@ -320,13 +312,15 @@ export default function Admin() {
                           <span className="text-yellow-300">Pending</span>
                         )}
                       </td>
-                      <td className="p-3">{c.held ? "Yes" : "—"}</td>
+                      <td className="p-3">
+                        {c.held ? <span className="text-yellow-300">Yes</span> : "—"}
+                      </td>
                       <td className="p-3 rounded-r-xl">
                         <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => setApproval(id, true)}
                             disabled={busyId === id || isPending}
-                            className="px-3 py-1 rounded bg-green-600/70 hover:bg-green-600 disabled:opacity-60 text-xs"
+                            className="px-3 py-1 rounded-lg bg-green-600/70 hover:bg-green-600 disabled:opacity-60 text-xs"
                           >
                             {busyId === id ? "..." : "Approve"}
                           </button>
@@ -334,7 +328,7 @@ export default function Admin() {
                           <button
                             onClick={() => setApproval(id, false)}
                             disabled={busyId === id || isPending}
-                            className="px-3 py-1 rounded bg-red-600/70 hover:bg-red-600 disabled:opacity-60 text-xs"
+                            className="px-3 py-1 rounded-lg bg-red-600/70 hover:bg-red-600 disabled:opacity-60 text-xs"
                           >
                             {busyId === id ? "..." : "Reject"}
                           </button>
@@ -342,14 +336,14 @@ export default function Admin() {
                           <button
                             onClick={() => toggleHeld(id, !c.held)}
                             disabled={busyId === id || isPending}
-                            className="px-3 py-1 rounded bg-yellow-600/50 hover:bg-yellow-600/70 disabled:opacity-60 text-xs"
+                            className="px-3 py-1 rounded-lg bg-yellow-600/50 hover:bg-yellow-600/70 disabled:opacity-60 text-xs"
                           >
                             {busyId === id ? "..." : c.held ? "Release" : "Hold"}
                           </button>
 
                           <button
                             onClick={() => navigate(`/campaign/${id}`)}
-                            className="px-3 py-1 rounded bg-white/10 hover:bg-white/15 border border-white/10 text-xs"
+                            className="px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs"
                           >
                             Open
                           </button>
