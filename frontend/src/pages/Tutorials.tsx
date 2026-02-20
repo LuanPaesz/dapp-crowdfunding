@@ -1,17 +1,50 @@
-import { Copy, ArrowLeft } from "lucide-react";
+import { Copy, ArrowLeft, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useMemo, useState } from "react";
 
 function Step({ children }: { children: React.ReactNode }) {
   return <li className="text-sm text-white/70 leading-relaxed">{children}</li>;
 }
 
+function isAddress(v: string) {
+  return /^0x[a-fA-F0-9]{40}$/.test(v.trim());
+}
+
 export default function Tutorials() {
-  const rpcUrl = (import.meta.env.VITE_RPC_URL as string | undefined) ?? "https://blockfund-rpc.duckdns.org";
+  const rpcUrl =
+    (import.meta.env.VITE_RPC_URL as string | undefined) ??
+    "https://blockfund-rpc.duckdns.org";
   const chainId = 31337; // your Hardhat remote chain id
 
-  async function copy(text: string) {
+  // Google Form base (no "pp_url" here; we will build it)
+  const FORM_BASE =
+    "https://docs.google.com/forms/d/e/1FAIpQLSf-SiMM8qUvwSUEHOaiXOTCVDPsN3F6BRUZ00-MeJIl6-vNqw/viewform";
+
+  // Entry IDs extracted from your prefill link
+  const ENTRY_WALLET = "entry.457660299";
+  const ENTRY_NAME = "entry.1214837844";
+
+  const [testerName, setTesterName] = useState("");
+  const [walletAddr, setWalletAddr] = useState("");
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const requestUrl = useMemo(() => {
+    const u = new URL(FORM_BASE);
+    u.searchParams.set("usp", "pp_url");
+
+    if (walletAddr.trim()) u.searchParams.set(ENTRY_WALLET, walletAddr.trim());
+    if (testerName.trim()) u.searchParams.set(ENTRY_NAME, testerName.trim());
+
+    return u.toString();
+  }, [walletAddr, testerName]);
+
+  async function copy(text: string, key?: string) {
     try {
       await navigator.clipboard.writeText(text);
+      if (key) {
+        setCopied(key);
+        setTimeout(() => setCopied(null), 1200);
+      }
     } catch {
       // ignore
     }
@@ -50,10 +83,10 @@ export default function Tutorials() {
             <div className="text-xs text-white/50">RPC URL</div>
             <div className="mt-1 font-mono text-sm text-white/80 break-all">{rpcUrl}</div>
             <button
-              onClick={() => copy(rpcUrl)}
+              onClick={() => copy(rpcUrl, "rpc")}
               className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
             >
-              <Copy className="w-4 h-4" /> Copy RPC
+              <Copy className="w-4 h-4" /> {copied === "rpc" ? "Copied!" : "Copy RPC"}
             </button>
           </div>
 
@@ -61,16 +94,16 @@ export default function Tutorials() {
             <div className="text-xs text-white/50">Chain ID</div>
             <div className="mt-1 font-mono text-sm text-white/80">{chainId}</div>
             <button
-              onClick={() => copy(String(chainId))}
+              onClick={() => copy(String(chainId), "chain")}
               className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
             >
-              <Copy className="w-4 h-4" /> Copy Chain ID
+              <Copy className="w-4 h-4" /> {copied === "chain" ? "Copied!" : "Copy Chain ID"}
             </button>
           </div>
         </div>
 
         <ol className="list-decimal pl-5 mt-4 space-y-2">
-          <Step>Install MetaMask (Chrome/Brave) and create a wallet.</Step>
+          <Step>Install MetaMask (Chrome/Brave/Edge) and create a wallet.</Step>
           <Step>Open MetaMask → <b>Settings</b> → <b>Networks</b> → <b>Add network</b>.</Step>
           <Step>
             Choose <b>Add a network manually</b> and set:
@@ -90,15 +123,81 @@ export default function Tutorials() {
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/6 to-black/25 p-6">
         <h2 className="text-lg font-semibold">2) Get test ETH (for testing)</h2>
         <p className="text-sm text-white/60 mt-1">
-          If you are using a public testnet, use a faucet to request test ETH. If you are using a private Hardhat RPC,
-          the admin can distribute test ETH or provide funded test accounts.
+          This is a private Hardhat RPC (no public faucet). To test the app, request <b>10 test ETH</b> from the admin.
         </p>
-        <ul className="list-disc pl-5 mt-3 space-y-2 text-sm text-white/70">
-          <li>Copy your MetaMask address.</li>
-          <li>Request test ETH from a faucet (public testnets) or from the project admin (private RPC).</li>
-          <li>Wait a moment and confirm your balance in MetaMask.</li>
-        </ul>
-        <p className="text-xs text-white/45 mt-3">⚠️ Never share seed phrases or private keys.</p>
+
+        <ol className="list-decimal pl-5 mt-3 space-y-2">
+          <Step>
+            In MetaMask, click your account name/address at the top to copy your wallet address
+            (it starts with <b>0x…</b>).
+          </Step>
+          <Step>
+            Paste your address below and click <b>Open request form</b>. The form will be pre-filled.
+          </Step>
+          <Step>
+            Submit the form. The admin will send <b>10 test ETH</b> manually to your wallet.
+          </Step>
+          <Step>
+            Wait a moment and confirm your balance in MetaMask (Assets tab).
+          </Step>
+        </ol>
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="md:col-span-4 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <div className="text-xs text-white/50">Your name / tester ID</div>
+            <input
+              value={testerName}
+              onChange={(e) => setTesterName(e.target.value)}
+              placeholder="e.g., John / Tester-01"
+              className="w-full bg-transparent outline-none text-sm text-white/80 placeholder:text-white/35"
+            />
+          </div>
+
+          <div className="md:col-span-8 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+            <div className="text-xs text-white/50">Your MetaMask wallet address (0x...)</div>
+            <input
+              value={walletAddr}
+              onChange={(e) => setWalletAddr(e.target.value)}
+              placeholder="0x1234... (copy from MetaMask)"
+              className="w-full bg-transparent outline-none text-sm font-mono text-white/80 placeholder:text-white/35"
+            />
+            {!!walletAddr && !isAddress(walletAddr) && (
+              <div className="text-xs text-red-300 mt-1">
+                Please paste a valid address (0x + 40 hex chars).
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => copy(walletAddr.trim(), "addr")}
+            disabled={!walletAddr.trim()}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition disabled:opacity-50"
+          >
+            <Copy className="w-4 h-4" />
+            {copied === "addr" ? "Copied!" : "Copy address"}
+          </button>
+
+          <a
+            href={requestUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={
+              "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition " +
+              (isAddress(walletAddr) || !walletAddr.trim()
+                ? "border-purple-500/25 bg-purple-500/10 hover:bg-purple-500/15"
+                : "border-white/10 bg-white/5 hover:bg-white/10")
+            }
+          >
+            <ExternalLink className="w-4 h-4" />
+            Open request form
+          </a>
+        </div>
+
+        <p className="text-xs text-white/45 mt-3">
+          ⚠️ Never share seed phrases or private keys. Only share your public wallet address (0x…).
+        </p>
       </div>
 
       {/* 3 */}
