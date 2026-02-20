@@ -16,7 +16,7 @@ const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <WagmiProvider config={wagmiConfig}>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={darkTheme({
@@ -25,8 +25,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             borderRadius: "large",
             overlayBlur: "small",
           })}
-          coolMode
           showRecentTransactions
+          coolMode
         >
           <BrowserRouter>
             <App />

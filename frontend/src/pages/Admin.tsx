@@ -1,5 +1,6 @@
 // frontend/src/pages/Admin.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useAccount,
   useReadContract,
@@ -7,7 +8,6 @@ import {
   useWriteContract,
 } from "wagmi";
 import type { Abi } from "abitype";
-import { useNavigate } from "react-router-dom";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 import AdminFinance from "../components/AdminFinance";
 
@@ -15,13 +15,15 @@ type Campaign = {
   owner: `0x${string}`;
   title: string;
   description: string;
+  media?: string;
+  projectLink?: string;
+
   goal: bigint;
   deadline: bigint;
   totalRaised: bigint;
   withdrawn: boolean;
   exists: boolean;
-  media?: string;
-  projectLink?: string;
+
   approved: boolean;
   held: boolean;
   reports: bigint;
@@ -29,44 +31,44 @@ type Campaign = {
 
 type TabKey = "admin" | "finance";
 
+function prettifyError(err: any) {
+  return (
+    err?.shortMessage ||
+    err?.cause?.shortMessage ||
+    err?.details ||
+    err?.cause?.details ||
+    err?.message ||
+    "Transaction failed."
+  );
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const { address, isConnected } = useAccount();
-  const { writeContractAsync } = useWriteContract();
-
-  // ---- admin checks ----
-  const envAdmin = import.meta.env.VITE_ADMIN_ADDRESS?.toLowerCase?.() ?? null;
-
-  const { data: contractAdmin } = useReadContract({
-    address: CROWDFUND_ADDRESS,
-    abi: CROWDFUND_ABI,
-    functionName: "admin",
-  }) as { data?: string };
-
-  const lowerAddr = address?.toLowerCase();
-  const onChainAdmin = contractAdmin?.toLowerCase();
-
-  const isAdmin =
-    !!lowerAddr &&
-    (lowerAddr === envAdmin || (onChainAdmin && lowerAddr === onChainAdmin));
+  const { writeContractAsync, isPending } = useWriteContract();
 
   const [tab, setTab] = useState<TabKey>("admin");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
-  if (!isAdmin) {
-    return (
-      <div className="space-y-3">
-        <h1 className="text-2xl font-bold">Admin</h1>
-        <p className="text-red-400 text-sm">
-          Access denied. Only the platform admin can view this page.
-        </p>
-      </div>
-    );
-  }
+  // ---- admin checks ----
+  const envAdmin = (import.meta.env.VITE_ADMIN_ADDRESS || "").toLowerCase();
 
-  // ---- load campaigns ----
+  const { data: contractAdmin } = useReadContract({
+    address: CROWDFUND_ADDRESS,
+    abi: CROWDFUND_ABI,
+    functionName: "admin",
+  }) as { data?: `0x${string}` };
+
+  const isAdmin = useMemo(() => {
+    const me = address?.toLowerCase();
+    const onchain = contractAdmin?.toLowerCase();
+    if (!me) return false;
+    return me === envAdmin || (!!onchain && me === onchain);
+  }, [address, contractAdmin, envAdmin]);
+
+  // ---- load nextId ----
   const { data: nextId } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
@@ -76,38 +78,62 @@ export default function Admin() {
 
   const count = Number(nextId ?? 0n);
 
-  const calls =
-    count > 0
-      ? Array.from({ length: count }, (_, id) => ({
-          address: CROWDFUND_ADDRESS,
-          abi: CROWDFUND_ABI as unknown as Abi,
-          functionName: "getCampaign" as const,
-          args: [BigInt(id)],
-        }))
-      : [];
+  // ---- build read calls ----
+  const calls = useMemo(() => {
+    if (!count || count <= 0) return [];
+    return Array.from({ length: count }, (_, id) => ({
+      address: CROWDFUND_ADDRESS,
+      abi: CROWDFUND_ABI as unknown as Abi,
+      functionName: "getCampaign" as const,
+      args: [BigInt(id)],
+    }));
+  }, [count]);
 
+  // ---- batch read ----
   const { data } = useReadContracts({
     contracts: calls,
     allowFailure: true,
     query: { refetchInterval: 2000 },
   });
 
-  const rows: { id: number; c: Campaign }[] =
-    (data ?? [])
+  const rows: { id: number; c: Campaign }[] = useMemo(() => {
+    return (data ?? [])
       .map((r, id) =>
-        r.status === "success" ? { id, c: r.result as Campaign } : null
+        r && r.status === "success" ? { id, c: r.result as Campaign } : null
       )
       .filter(Boolean) as { id: number; c: Campaign }[];
+  }, [data]);
 
-  const existing = useMemo(
-    () => rows.filter((x) => x.c?.exists),
-    [rows]
-  );
+  const existing = useMemo(() => rows.filter((x) => x.c?.exists), [rows]);
 
   const reported = useMemo(
     () => existing.filter((x) => (x.c.reports ?? 0n) > 0n),
     [existing]
   );
+
+  const pending = useMemo(
+    () => existing.filter((x) => !x.c.approved),
+    [existing]
+  );
+
+  // ✅ LOGS (sem loop infinito)
+  useEffect(() => {
+    console.log("[Admin] env:", import.meta.env.VITE_CROWDFUND_ADDRESS);
+    console.log("[Admin] const:", CROWDFUND_ADDRESS);
+    console.log("[Admin] nextId:", nextId?.toString?.(), "count:", count);
+    console.log("[Admin] calls:", calls);
+    console.log("[Admin] data:", data);
+    console.log("[Admin] rows:", rows);
+    console.log("[Admin] existing:", existing);
+
+    // extra: se o primeiro retorno falhar, mostra o erro
+    if (data?.[0]?.status === "failure") {
+      console.log("[Admin] getCampaign(0) failure:", data[0].error);
+    }
+    if (data?.[0]?.status === "success") {
+      console.log("[Admin] getCampaign(0) raw:", data[0].result);
+    }
+  }, [nextId, count, calls, data, rows, existing]);
 
   // ---- actions ----
   async function setApproval(id: number, val: boolean) {
@@ -121,19 +147,15 @@ export default function Admin() {
 
     setBusyId(id);
     try {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "approveCampaign",
         args: [BigInt(id), val],
       });
-      setInfoMsg(val ? "✅ Campaign approved." : "✅ Campaign rejected.");
+      setInfoMsg(val ? `✅ Approved. Tx: ${hash}` : `✅ Rejected. Tx: ${hash}`);
     } catch (err: any) {
-      setErrorMsg(
-        err?.shortMessage ||
-          err?.message ||
-          "Failed to send approve/reject transaction."
-      );
+      setErrorMsg(prettifyError(err));
     } finally {
       setBusyId(null);
     }
@@ -150,28 +172,24 @@ export default function Admin() {
 
     setBusyId(id);
     try {
-      await writeContractAsync({
+      const hash = await writeContractAsync({
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "setHeld",
         args: [BigInt(id), next],
       });
-      setInfoMsg(next ? "✅ Campaign placed on hold." : "✅ Campaign released.");
+      setInfoMsg(
+        next ? `✅ Placed on hold. Tx: ${hash}` : `✅ Released. Tx: ${hash}`
+      );
     } catch (err: any) {
-      setErrorMsg(err?.shortMessage || err?.message || "Failed to toggle hold.");
+      setErrorMsg(prettifyError(err));
     } finally {
       setBusyId(null);
     }
   }
 
-  // ---- UI helpers ----
-  const TabBtn = ({
-    k,
-    label,
-  }: {
-    k: TabKey;
-    label: string;
-  }) => (
+  // ---- tabs ----
+  const TabBtn = ({ k, label }: { k: TabKey; label: string }) => (
     <button
       onClick={() => setTab(k)}
       className={
@@ -185,6 +203,17 @@ export default function Admin() {
     </button>
   );
 
+  if (!isAdmin) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-2xl font-bold">Admin</h1>
+        <p className="text-red-400 text-sm">
+          Access denied. Only the platform admin can view this page.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -192,6 +221,10 @@ export default function Admin() {
           <h1 className="text-2xl font-bold">Admin</h1>
           <p className="text-white/60 text-sm">
             Review campaigns, manage reports, and place campaigns on hold.
+          </p>
+          <p className="text-white/40 text-xs mt-2">
+            Contract: {CROWDFUND_ADDRESS} <br />
+            nextId: {String(nextId ?? 0n)}
           </p>
         </div>
 
@@ -207,7 +240,7 @@ export default function Admin() {
         </div>
       )}
       {infoMsg && (
-        <div className="text-sm text-green-300 bg-green-950/30 border border-green-800 rounded px-3 py-2">
+        <div className="text-sm text-green-300 bg-green-950/30 border border-green-800 rounded px-3 py-2 break-all">
           {infoMsg}
         </div>
       )}
@@ -258,8 +291,10 @@ export default function Admin() {
           <div className="space-y-2">
             <h2 className="text-lg font-semibold">Approval queue</h2>
 
-            {!existing.length ? (
-              <p className="text-white/60 text-sm">No campaigns created yet.</p>
+            {!pending.length ? (
+              <p className="text-white/60 text-sm">
+                No pending campaigns. (Created: {count})
+              </p>
             ) : (
               <table className="w-full text-sm border-separate border-spacing-y-2">
                 <thead>
@@ -273,7 +308,7 @@ export default function Admin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {existing.map(({ id, c }) => (
+                  {pending.map(({ id, c }) => (
                     <tr key={id} className="bg-white/5">
                       <td className="p-3 rounded-l-xl">#{id}</td>
                       <td className="p-3">{c.title}</td>
@@ -290,14 +325,15 @@ export default function Admin() {
                         <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => setApproval(id, true)}
-                            disabled={busyId === id}
+                            disabled={busyId === id || isPending}
                             className="px-3 py-1 rounded bg-green-600/70 hover:bg-green-600 disabled:opacity-60 text-xs"
                           >
                             {busyId === id ? "..." : "Approve"}
                           </button>
+
                           <button
                             onClick={() => setApproval(id, false)}
-                            disabled={busyId === id}
+                            disabled={busyId === id || isPending}
                             className="px-3 py-1 rounded bg-red-600/70 hover:bg-red-600 disabled:opacity-60 text-xs"
                           >
                             {busyId === id ? "..." : "Reject"}
@@ -305,14 +341,10 @@ export default function Admin() {
 
                           <button
                             onClick={() => toggleHeld(id, !c.held)}
-                            disabled={busyId === id}
+                            disabled={busyId === id || isPending}
                             className="px-3 py-1 rounded bg-yellow-600/50 hover:bg-yellow-600/70 disabled:opacity-60 text-xs"
                           >
-                            {busyId === id
-                              ? "..."
-                              : c.held
-                              ? "Release"
-                              : "Hold"}
+                            {busyId === id ? "..." : c.held ? "Release" : "Hold"}
                           </button>
 
                           <button

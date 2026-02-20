@@ -1,24 +1,36 @@
 // frontend/src/lib/contract.ts
-import artifact from "./Crowdfunding.json";
-import deployed from "./deployed.json";
 import type { Abi } from "abitype";
+import bundle from "./crowdfund.bundle.json";
 
-export const CROWDFUND_ABI = (artifact as any).abi as Abi;
+/**
+ * Single source of truth:
+ * - Contract address + ABI exported directly from the VM deployment artifacts.
+ * This prevents ABI/address mismatches after redeploys.
+ */
+export const CROWDFUND_ADDRESS = (bundle as any).CROWDFUND_ADDRESS as `0x${string}`;
+export const CROWDFUND_ABI = (bundle as any).ABI as Abi;
 
-const envAddr = (import.meta.env.VITE_CROWDFUND_ADDRESS as string | undefined)?.trim();
-const fileAddr = (deployed as any).CROWDFUND_ADDRESS as string | undefined;
-
-// prioridade: ENV -> deployed.json
-const addr =
-  (envAddr && envAddr.startsWith("0x") ? envAddr : undefined) ||
-  (fileAddr && fileAddr.startsWith("0x") ? fileAddr : undefined) ||
-  "";
-
-// validação
-if (!addr || typeof addr !== "string" || !addr.startsWith("0x")) {
-  console.error("❌ Invalid CROWDFUND_ADDRESS. env:", envAddr, "file:", fileAddr);
-} else {
-  console.log("✅ Using CROWDFUND_ADDRESS:", addr);
+function isAddress(x: unknown): x is `0x${string}` {
+  return typeof x === "string" && x.startsWith("0x") && x.length === 42;
 }
 
-export const CROWDFUND_ADDRESS = addr as `0x${string}`;
+if (!isAddress(CROWDFUND_ADDRESS)) {
+  console.error("❌ Invalid CROWDFUND_ADDRESS from bundle:", CROWDFUND_ADDRESS);
+  throw new Error("Invalid CROWDFUND_ADDRESS in crowdfund.bundle.json");
+}
+
+console.log("✅ Using CROWDFUND_ADDRESS:", CROWDFUND_ADDRESS);
+
+try {
+  const getFn = (CROWDFUND_ABI as any[]).find(
+    (x) => x?.type === "function" && x?.name === "getCampaign"
+  );
+
+  console.log(
+    "✅ ABI getCampaign outputs:",
+    getFn?.outputs?.length,
+    getFn?.outputs?.map((o: any) => `${o.name || "?"}:${o.type}`),
+    "tuple components:",
+    getFn?.outputs?.[0]?.components?.length ?? 0
+  );
+} catch {}

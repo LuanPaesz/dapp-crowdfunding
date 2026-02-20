@@ -1,7 +1,7 @@
 // frontend/src/pages/Create.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAccount, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
@@ -19,18 +19,23 @@ function prettifyError(err: any) {
 export default function Create() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { address, isConnected } = useAccount();
+
+  const { address, isConnected, chain } = useAccount();
+  const publicClient = usePublicClient();
   const { writeContractAsync, isPending } = useWriteContract();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("0");
   const [durationDays, setDurationDays] = useState<number>(1);
+
+  // ON-CHAIN metadata (strings)
   const [mediaUrl, setMediaUrl] = useState("");
   const [projectLink, setProjectLink] = useState("");
 
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -58,23 +63,42 @@ export default function Create() {
     }
   }, [location.search]);
 
+  const clean = useMemo(() => {
+    return {
+      title: title.trim(),
+      description: description.trim(),
+      media: mediaUrl.trim(),
+      link: projectLink.trim(),
+      duration: Number(durationDays),
+    };
+  }, [title, description, mediaUrl, projectLink, durationDays]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg(null);
+    setInfoMsg(null);
     setTxHash(null);
+
+    console.log("[Create] submit ✅");
+    console.log("[Create] connected:", isConnected, "address:", address, "chain:", chain?.id);
 
     if (!isConnected || !address) {
       setErrorMsg("Please connect your wallet first.");
       return;
     }
-    if (!title.trim()) {
-      setErrorMsg("Title is required.");
+
+    if (!publicClient) {
+      setErrorMsg("Public client not ready. Refresh and try again.");
       return;
     }
-    if (!description.trim()) {
-      setErrorMsg("Description is required.");
+
+    if (!CROWDFUND_ADDRESS || !String(CROWDFUND_ADDRESS).startsWith("0x")) {
+      setErrorMsg("Invalid contract address. Check VITE_CROWDFUND_ADDRESS / deployed.json.");
       return;
     }
+
+    if (!clean.title) return setErrorMsg("Title is required.");
+    if (!clean.description) return setErrorMsg("Description is required.");
 
     let goalWei: bigint;
     try {
@@ -83,33 +107,61 @@ export default function Create() {
       setErrorMsg("Goal must be a valid ETH number (e.g., 0.1).");
       return;
     }
-    if (goalWei <= 0n) {
-      setErrorMsg("Goal must be greater than 0.");
-      return;
-    }
+    if (goalWei <= 0n) return setErrorMsg("Goal must be greater than 0.");
 
-    const daysNum = Number(durationDays);
-    if (!Number.isFinite(daysNum) || daysNum < 1) {
+    if (!Number.isFinite(clean.duration) || clean.duration < 1) {
       setErrorMsg("Duration must be at least 1 day.");
       return;
     }
 
+    // contract expects 6 args:
+    // (title, description, media, projectLink, goalWei, durationDays)
+    const args = [
+      clean.title,
+      clean.description,
+      clean.media,
+      clean.link,
+      goalWei,
+      BigInt(clean.duration),
+    ] as const;
+
+    console.log("[Create] contract:", CROWDFUND_ADDRESS);
+    console.log("[Create] args:", args);
+
+    // 1) SIMULATE
+    try {
+      await publicClient.simulateContract({
+        address: CROWDFUND_ADDRESS,
+        abi: CROWDFUND_ABI,
+        functionName: "createCampaign",
+        args,
+        account: address,
+      });
+      console.log("[Create] simulate OK ✅");
+    } catch (simErr: any) {
+      console.log("[Create] simulate ERROR:", simErr);
+      setErrorMsg(`Simulation failed: ${prettifyError(simErr)}`);
+      return;
+    }
+
+    // 2) SEND (MetaMask)
     try {
       const hash = await writeContractAsync({
         address: CROWDFUND_ADDRESS,
         abi: CROWDFUND_ABI,
         functionName: "createCampaign",
-        args: [
-          title.trim(),
-          description.trim(),
-          mediaUrl.trim(),
-          projectLink.trim(),
-          goalWei,
-          BigInt(daysNum),
-        ],
+        args,
+        // gas manual ajuda em hardhat remoto
+        gas: 1_500_000n,
       });
 
       setTxHash(hash);
+      setInfoMsg("⛏️ Transaction sent. Waiting for confirmation...");
+
+      // ✅ importante: espera minerar para evitar “campanha fantasma” no UI
+      await publicClient.waitForTransactionReceipt({ hash });
+
+      setInfoMsg("✅ Campaign created successfully!");
 
       setTitle("");
       setDescription("");
@@ -118,6 +170,7 @@ export default function Create() {
       setMediaUrl("");
       setProjectLink("");
     } catch (err: any) {
+      console.log("[Create] WRITE ERROR:", err);
       setErrorMsg(prettifyError(err));
     }
   }
@@ -146,27 +199,25 @@ export default function Create() {
         </div>
 
         <div>
-          <label className="block text-sm text-gray-300">
-            Media URL (image or video)
-          </label>
+          <label className="block text-sm text-gray-300">Media URL (image or video)</label>
           <input
             value={mediaUrl}
             onChange={(e) => setMediaUrl(e.target.value)}
             className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            placeholder="https://example.com/image.png"
+            placeholder="https://..."
           />
+          <p className="text-xs text-gray-400 mt-1">Stored on-chain as metadata (string).</p>
         </div>
 
         <div>
-          <label className="block text-sm text-gray-300">
-            Project link (GitHub / Website)
-          </label>
+          <label className="block text-sm text-gray-300">Project link (GitHub / Website)</label>
           <input
             value={projectLink}
             onChange={(e) => setProjectLink(e.target.value)}
             className="w-full mt-1 p-2 rounded bg-gray-800 border border-gray-600 focus:border-purple-500"
-            placeholder="https://github.com/..."
+            placeholder="https://..."
           />
+          <p className="text-xs text-gray-400 mt-1">Stored on-chain as metadata (string).</p>
         </div>
 
         <div>
@@ -198,9 +249,15 @@ export default function Create() {
           </div>
         )}
 
+        {infoMsg && (
+          <div className="text-blue-200 text-sm bg-blue-950/30 border border-blue-800 rounded px-3 py-2">
+            {infoMsg}
+          </div>
+        )}
+
         {txHash && (
           <div className="text-green-400 text-sm bg-green-950/30 border border-green-800 rounded px-3 py-2 break-all">
-            ✅ Transaction sent: {txHash}
+            ✅ Transaction: {txHash}
           </div>
         )}
 
