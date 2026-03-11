@@ -4,14 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml \"src/**/*.{ts,tsx}\"",
-    "lint:css": "stylelint \"frontend/src/**/*.css\" --allow-empty-input",
-    "test": "vitest run"
+  "dev": "vite",
+  "build": "tsc -b && vite build",
+  "preview": "vite preview",
+  "typecheck": "tsc -p tsconfig.json --noEmit",
+  "lint": "eslint \"src/**/*.{ts,tsx}\"",
+  "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+  "lint:ci": "mkdir -p reports && eslint -f checkstyle -o reports/eslint.xml \"src/**/*.{ts,tsx}\"",
+  "lint:css": "stylelint \"src/**/*.css\" --allow-empty-input",
+  "test": "vitest run"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.8",
@@ -46,9 +47,6 @@
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.1.7",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
-    
+    "vite": "^7.1.7"
   }
 }
