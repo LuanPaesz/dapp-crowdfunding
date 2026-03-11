@@ -1,4 +1,3 @@
-// frontend/src/components/CampaignUpdates.tsx
 import { useEffect, useMemo, useState } from "react";
 
 type UpdateItem = {
@@ -11,13 +10,15 @@ function storageKey(campaignId: bigint) {
   return `bf_updates_${campaignId.toString()}`;
 }
 
+type CampaignUpdatesProps = Readonly<{
+  campaignId: bigint;
+  isOwner: boolean;
+}>;
+
 export default function CampaignUpdates({
   campaignId,
   isOwner,
-}: {
-  campaignId: bigint;
-  isOwner: boolean;
-}) {
+}: CampaignUpdatesProps) {
   const key = useMemo(() => storageKey(campaignId), [campaignId]);
 
   const [items, setItems] = useState<UpdateItem[]>([]);
@@ -25,71 +26,82 @@ export default function CampaignUpdates({
 
   useEffect(() => {
     const raw = localStorage.getItem(key);
-    if (!raw) return;
+
+    if (!raw) {
+      return;
+    }
+
     try {
       const parsed = JSON.parse(raw) as UpdateItem[];
-      if (Array.isArray(parsed)) setItems(parsed);
+      if (Array.isArray(parsed)) {
+        setItems(parsed);
+      }
     } catch {
-      // ignore
+      // ignore invalid localStorage content
     }
   }, [key]);
 
-  function persist(next: UpdateItem[]) {
-    setItems(next);
-    localStorage.setItem(key, JSON.stringify(next));
+  function persist(nextItems: UpdateItem[]) {
+    setItems(nextItems);
+    localStorage.setItem(key, JSON.stringify(nextItems));
   }
 
   function addUpdate() {
-    const clean = text.trim();
-    if (!clean) return;
+    const cleanText = text.trim();
 
-    const next: UpdateItem[] = [
+    if (!cleanText) {
+      return;
+    }
+
+    const nextItems: UpdateItem[] = [
       {
         id: crypto.randomUUID(),
         createdAt: Date.now(),
-        text: clean,
+        text: cleanText,
       },
       ...items,
     ];
 
-    persist(next);
+    persist(nextItems);
     setText("");
   }
 
   return (
-    <div className="mt-6 card space-y-4">
+    <div className="card mt-6 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Campaign updates</h2>
         <span className="text-xs text-white/50">Mock posts (off-chain)</span>
       </div>
 
-      {isOwner && (
+      {isOwner ? (
         <div className="space-y-2">
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(event) => setText(event.target.value)}
             placeholder="Write an update for backers..."
             className="input min-h-[90px]"
           />
-          <button onClick={addUpdate} className="btn-primary text-sm">
+          <button type="button" onClick={addUpdate} className="btn-primary text-sm">
             Post update
           </button>
         </div>
-      )}
+      ) : null}
 
-      {!items.length ? (
+      {items.length === 0 ? (
         <p className="text-sm text-white/60">No updates yet.</p>
       ) : (
         <div className="space-y-3">
-          {items.map((u) => (
+          {items.map((item) => (
             <div
-              key={u.id}
-              className="rounded-xl bg-black/20 border border-white/10 p-3"
+              key={item.id}
+              className="rounded-xl border border-white/10 bg-black/20 p-3"
             >
               <div className="text-xs text-white/50">
-                {new Date(u.createdAt).toLocaleString()}
+                {new Date(item.createdAt).toLocaleString()}
               </div>
-              <div className="text-sm mt-1 whitespace-pre-wrap">{u.text}</div>
+              <div className="mt-1 whitespace-pre-wrap text-sm">
+                {item.text}
+              </div>
             </div>
           ))}
         </div>

@@ -1,5 +1,7 @@
 {
   "devDependencies": {
+    "@sonar/scan": "^4.3.5",
+    "sonar-scanner": "^3.1.0",
     "stylelint": "^16.25.0",
     "stylelint-config-standard": "^39.0.1",
     "stylelint-config-tailwindcss": "^1.0.0"

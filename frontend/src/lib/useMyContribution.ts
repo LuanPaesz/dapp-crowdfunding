@@ -1,14 +1,20 @@
 import { useAccount, useReadContract } from "wagmi";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./contract";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
 export function useMyContribution(id: number) {
   const { address } = useAccount();
+
+  const contributorAddress = address ?? ZERO_ADDRESS;
+
   const { data } = useReadContract({
     address: CROWDFUND_ADDRESS,
     abi: CROWDFUND_ABI,
     functionName: "contributions",
-    args: [BigInt(id), (address ?? "0x0000000000000000000000000000000000000000") as `0x${string}`],
+    args: [BigInt(id), contributorAddress],
     query: { enabled: Boolean(address) },
-  }) as { data?: bigint };
-  return data ?? 0n;
+  });
+
+  return (data as bigint | undefined) ?? 0n;
 }

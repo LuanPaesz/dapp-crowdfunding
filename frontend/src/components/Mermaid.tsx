@@ -1,7 +1,11 @@
 import { useEffect, useId } from "react";
 import mermaid from "mermaid";
 
-export default function MermaidDiagram({ code }: { code: string }) {
+type MermaidDiagramProps = Readonly<{
+  code: string;
+}>;
+
+export default function MermaidDiagram({ code }: MermaidDiagramProps) {
   const id = useId();
 
   useEffect(() => {
@@ -11,13 +15,12 @@ export default function MermaidDiagram({ code }: { code: string }) {
       securityLevel: "strict",
     });
 
-    // Renderiza os diagramas presentes no DOM
-    mermaid.run({ querySelector: `.mermaid-${CSS.escape(id)}` });
+    void mermaid.run({ querySelector: `.mermaid-${CSS.escape(id)}` });
   }, [code, id]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/30 p-4 overflow-auto">
-      <div className={`mermaid-${id} mermaid`}>{code}</div>
+    <div className="overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4">
+      <div className={`mermaid ${`mermaid-${id}`}`}>{code}</div>
     </div>
   );
 }

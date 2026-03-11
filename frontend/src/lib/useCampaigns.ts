@@ -1,6 +1,7 @@
+import { useMemo } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
-import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./contract";
 import type { Abi } from "abitype";
+import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "./contract";
 
 export type CampaignData = {
   id: number;
@@ -14,8 +15,9 @@ export type CampaignData = {
   exists: boolean;
 };
 
+type CampaignContractResult = Omit<CampaignData, "id">;
+
 export function useCampaigns() {
-  // 1. pega contador global
   const {
     data: nextIdRaw,
     isLoading: loadingCount,
@@ -27,25 +29,21 @@ export function useCampaigns() {
   });
 
   const nextId = Number(nextIdRaw ?? 0n);
+  const enabled = nextId > 0;
 
-  // 2. se não tem campanha, devolve vazio
-  if (nextId === 0) {
-    return {
-      campaigns: [] as CampaignData[],
-      isLoading: loadingCount,
-      error: countError,
-    };
-  }
+  const calls = useMemo(() => {
+    if (!enabled) {
+      return [];
+    }
 
-  // 3. monta as chamadas getCampaign(id) para cada id
-  const calls = Array.from({ length: nextId }, (_, id) => ({
-    address: CROWDFUND_ADDRESS,
-    abi: CROWDFUND_ABI as unknown as Abi,
-    functionName: "getCampaign" as const,
-    args: [BigInt(id)],
-  }));
+    return Array.from({ length: nextId }, (_, id) => ({
+      address: CROWDFUND_ADDRESS,
+      abi: CROWDFUND_ABI as Abi,
+      functionName: "getCampaign" as const,
+      args: [BigInt(id)],
+    }));
+  }, [enabled, nextId]);
 
-  // 4. chama multicall
   const {
     data: results,
     isLoading: loadingCampaigns,
@@ -53,34 +51,42 @@ export function useCampaigns() {
   } = useReadContracts({
     contracts: calls,
     allowFailure: true,
+    query: { enabled },
   });
 
-  // 5. converte o resultado bruto em uma lista de campanhas válidas
-  const campaigns: CampaignData[] =
-    results
-      ?.map((callResult, idx) => {
-        if (callResult.status !== "success") return null;
+  const campaigns = useMemo<CampaignData[]>(() => {
+    return (
+      results?.flatMap((callResult, index) => {
+        if (callResult?.status !== "success") {
+          return [];
+        }
 
-        const c = callResult.result as any;
-        if (!c || !c.exists) return null;
+        const campaign = callResult.result as CampaignContractResult;
 
-        return {
-          id: idx,
-          owner: c.owner,
-          title: c.title,
-          description: c.description,
-          goal: c.goal,
-          deadline: c.deadline,
-          totalRaised: c.totalRaised,
-          withdrawn: c.withdrawn,
-          exists: c.exists,
-        } satisfies CampaignData;
-      })
-      .filter(Boolean) as CampaignData[] ?? [];
+        if (!campaign.exists) {
+          return [];
+        }
+
+        return [
+          {
+            id: index,
+            owner: campaign.owner,
+            title: campaign.title,
+            description: campaign.description,
+            goal: campaign.goal,
+            deadline: campaign.deadline,
+            totalRaised: campaign.totalRaised,
+            withdrawn: campaign.withdrawn,
+            exists: campaign.exists,
+          },
+        ];
+      }) ?? []
+    );
+  }, [results]);
 
   return {
     campaigns,
-    isLoading: loadingCount || loadingCampaigns,
-    error: countError || campaignsError,
+    isLoading: loadingCount || (enabled && loadingCampaigns),
+    error: countError ?? campaignsError,
   };
 }

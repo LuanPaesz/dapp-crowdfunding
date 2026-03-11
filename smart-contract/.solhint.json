@@ -6,6 +6,9 @@
     "no-unused-vars": "warn",
     "private-vars-leading-underscore": "off",
     "avoid-low-level-calls": "warn",
-    "max-line-length": ["warn", 140]
+    "max-line-length": ["warn", 140],
+    "not-rely-on-time": "off",
+    "reason-string": "off",
+    "custom-errors": "off"
   }
 }

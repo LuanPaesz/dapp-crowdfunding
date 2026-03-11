@@ -1,22 +1,26 @@
-// frontend/src/components/CampaignCard.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { formatUnits } from "viem";
 import { useEthUsdPrice, formatUsd } from "../lib/pricing";
 
-// =========================================================
-// Helpers para mídia (imagem / YouTube)
-// =========================================================
 function getYouTubeId(url: string): string | null {
   try {
-    const u = new URL(url);
-    if (u.hostname.includes("youtu.be")) return u.pathname.replace("/", "") || null;
-    if (u.hostname.includes("youtube.com")) {
-      const v = u.searchParams.get("v");
-      if (v) return v;
-      const parts = u.pathname.split("/");
-      return parts[parts.length - 1] || null;
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.hostname.includes("youtu.be")) {
+      return parsedUrl.pathname.replace("/", "") || null;
     }
+
+    if (parsedUrl.hostname.includes("youtube.com")) {
+      const videoId = parsedUrl.searchParams.get("v");
+      if (videoId) {
+        return videoId;
+      }
+
+      const pathParts = parsedUrl.pathname.split("/");
+      return pathParts[pathParts.length - 1] || null;
+    }
+
     return null;
   } catch {
     return null;
@@ -24,23 +28,32 @@ function getYouTubeId(url: string): string | null {
 }
 
 function isImageUrl(url: string): boolean {
-  const clean = url.split("?")[0].toLowerCase();
-  const exts = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
-  return exts.some((ext) => clean.includes(ext));
+  const cleanUrl = url.split("?")[0].toLowerCase();
+  const extensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"];
+  return extensions.some((extension) => cleanUrl.includes(extension));
 }
 
-function MediaPreview({ media, title }: { media?: string; title: string }) {
-  if (!media) return null;
+type MediaPreviewProps = Readonly<{
+  media?: string;
+  title: string;
+}>;
 
-  const ytId = getYouTubeId(media);
-  if (ytId) {
-    const embedUrl = `https://www.youtube.com/embed/${ytId}`;
+function MediaPreview({ media, title }: MediaPreviewProps) {
+  if (!media) {
+    return null;
+  }
+
+  const youtubeId = getYouTubeId(media);
+
+  if (youtubeId) {
+    const embedUrl = `https://www.youtube.com/embed/${youtubeId}`;
+
     return (
-      <div className="w-full aspect-video rounded-t-2xl overflow-hidden bg-black">
+      <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-black">
         <iframe
           src={embedUrl}
           title={title}
-          className="w-full h-full"
+          className="h-full w-full"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
@@ -50,8 +63,8 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
 
   if (isImageUrl(media)) {
     return (
-      <div className="w-full aspect-video rounded-t-2xl overflow-hidden bg-black">
-        <img src={media} alt={title} className="w-full h-full object-cover" />
+      <div className="aspect-video w-full overflow-hidden rounded-t-2xl bg-black">
+        <img src={media} alt={title} className="h-full w-full object-cover" />
       </div>
     );
   }
@@ -59,15 +72,12 @@ function MediaPreview({ media, title }: { media?: string; title: string }) {
   return null;
 }
 
-// =========================================================
-// Hook: anima número quando valor muda
-// =========================================================
 function useAnimatedNumber(value: number, durationMs = 500) {
   const [display, setDisplay] = useState(value);
 
   useEffect(() => {
-    let raf = 0;
-    const start = performance.now();
+    let animationFrameId = 0;
+    const startTime = performance.now();
     const from = display;
     const to = value;
 
@@ -75,26 +85,32 @@ function useAnimatedNumber(value: number, durationMs = 500) {
       setDisplay(value);
       return;
     }
-    if (from === to) return;
 
-    const tick = (t: number) => {
-      const p = Math.min(1, (t - start) / durationMs);
-      const eased = 1 - Math.pow(1 - p, 3); // easeOutCubic
-      setDisplay(from + (to - from) * eased);
-      if (p < 1) raf = requestAnimationFrame(tick);
+    if (from === to) {
+      return;
+    }
+
+    const tick = (time: number) => {
+      const progress = Math.min(1, (time - startTime) / durationMs);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+      setDisplay(from + (to - from) * easedProgress);
+
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(tick);
+      }
     };
 
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    animationFrameId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [value, durationMs, display]);
 
   return display;
 }
 
-// =========================================================
-// Tipagem Campaign
-// =========================================================
 type Campaign = {
   owner: `0x${string}`;
   title: string;
@@ -111,17 +127,19 @@ type Campaign = {
   reports: bigint;
 };
 
-// =========================================================
-// UI: progress + milestones
-// =========================================================
-function ProgressBar({ percent }: { percent: number }) {
-  const safe = Math.max(0, Math.min(100, percent));
+type ProgressBarProps = Readonly<{
+  percent: number;
+}>;
+
+function ProgressBar({ percent }: ProgressBarProps) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+
   return (
-    <div className="w-full rounded-full overflow-hidden bg-white/10 h-2">
+    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
       <div
         className="h-full transition-all duration-500"
         style={{
-          width: `${safe}%`,
+          width: `${safePercent}%`,
           background:
             "linear-gradient(90deg, rgba(139,92,246,1) 0%, rgba(236,72,153,1) 100%)",
         }}
@@ -130,19 +148,23 @@ function ProgressBar({ percent }: { percent: number }) {
   );
 }
 
-function Milestones({ percent }: { percent: number }) {
-  const p = Math.max(0, Math.min(100, percent));
-  const reached25 = p >= 25;
-  const reached50 = p >= 50;
-  const reached100 = p >= 100;
+type MilestonesProps = Readonly<{
+  percent: number;
+}>;
 
-  const badge = (label: string, ok: boolean) => (
+function Milestones({ percent }: MilestonesProps) {
+  const safePercent = Math.max(0, Math.min(100, percent));
+  const reached25 = safePercent >= 25;
+  const reached50 = safePercent >= 50;
+  const reached100 = safePercent >= 100;
+
+  const renderBadge = (label: string, reached: boolean) => (
     <span
       className={
-        "text-[11px] px-2 py-0.5 rounded-full border " +
-        (ok
-          ? "bg-green-500/10 border-green-500/30 text-green-300"
-          : "bg-white/5 border-white/10 text-white/50")
+        "rounded-full border px-2 py-0.5 text-[11px] " +
+        (reached
+          ? "border-green-500/30 bg-green-500/10 text-green-300"
+          : "border-white/10 bg-white/5 text-white/50")
       }
     >
       {label}
@@ -150,93 +172,111 @@ function Milestones({ percent }: { percent: number }) {
   );
 
   return (
-    <div className="flex gap-2 flex-wrap">
-      {badge("25%", reached25)}
-      {badge("50%", reached50)}
-      {badge("Funded", reached100)}
+    <div className="flex flex-wrap gap-2">
+      {renderBadge("25%", reached25)}
+      {renderBadge("50%", reached50)}
+      {renderBadge("Funded", reached100)}
     </div>
   );
 }
 
-// =========================================================
-// Main Card
-// =========================================================
-export default function CampaignCard({ id, camp }: { id: number; camp: Campaign }) {
-  const navigate = useNavigate();
+type CampaignCardProps = Readonly<{
+  id: number;
+  camp: Campaign;
+}>;
 
+type CampaignStatus = {
+  label: string;
+  color: string;
+};
+
+function getCampaignStatus(campaign: Campaign, daysLeft: number): CampaignStatus {
+  if (campaign.held) {
+    return { label: "Held", color: "text-yellow-300" };
+  }
+
+  if (!campaign.approved) {
+    return { label: "Pending", color: "text-yellow-300" };
+  }
+
+  if (campaign.withdrawn) {
+    return { label: "Withdrawn", color: "text-yellow-300" };
+  }
+
+  if (daysLeft <= 0) {
+    if (campaign.totalRaised >= campaign.goal) {
+      return { label: "Goal reached", color: "text-green-400" };
+    }
+
+    return { label: "Failed", color: "text-red-400" };
+  }
+
+  return { label: "Active", color: "text-green-400" };
+}
+
+export default function CampaignCard({ id, camp }: CampaignCardProps) {
+  const navigate = useNavigate();
   const ethUsd = useEthUsdPrice();
 
   const goalEth = Number(formatUnits(camp.goal, 18));
   const raisedEth = Number(formatUnits(camp.totalRaised, 18));
+  const percent =
+    camp.goal > 0n ? Number((camp.totalRaised * 100n) / camp.goal) : 0;
 
-  const percent = camp.goal > 0n ? Number((camp.totalRaised * 100n) / camp.goal) : 0;
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const secondsLeft = Number(camp.deadline) - nowInSeconds;
+  const daysLeft = secondsLeft > 0 ? Math.floor(secondsLeft / 86400) : 0;
 
-  const nowSec = Math.floor(Date.now() / 1000);
-  const secsLeft = Number(camp.deadline) - nowSec;
-  const daysLeft = secsLeft > 0 ? Math.floor(secsLeft / 86400) : 0;
-
-  // número animado
-  const raisedAnim = useAnimatedNumber(raisedEth, 500);
-
-  const raisedUsd = ethUsd ? raisedAnim * ethUsd : null;
+  const animatedRaised = useAnimatedNumber(raisedEth, 500);
+  const raisedUsd = ethUsd ? animatedRaised * ethUsd : null;
   const goalUsd = ethUsd ? goalEth * ethUsd : null;
 
-  // status
-  let statusLabel = "Active";
-  let statusColor = "text-green-400";
+  const status = getCampaignStatus(camp, daysLeft);
 
-  if (camp.held) {
-    statusLabel = "Held";
-    statusColor = "text-yellow-300";
-  } else if (!camp.approved) {
-    statusLabel = "Pending";
-    statusColor = "text-yellow-300";
-  } else if (camp.withdrawn) {
-    statusLabel = "Withdrawn";
-    statusColor = "text-yellow-300";
-  } else if (daysLeft <= 0) {
-    if (camp.totalRaised >= camp.goal) {
-      statusLabel = "Goal reached";
-      statusColor = "text-green-400";
-    } else {
-      statusLabel = "Failed";
-      statusColor = "text-red-400";
+  const goToDetails = () => {
+    navigate(`/campaign/${id}`);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      goToDetails();
     }
-  }
+  };
 
   return (
     <div
-      className="card card-hover overflow-hidden cursor-pointer flex flex-col p-0"
-      onClick={() => navigate(`/campaign/${id}`)}
+      className="card card-hover flex cursor-pointer flex-col overflow-hidden p-0"
+      onClick={goToDetails}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
     >
       <MediaPreview media={camp.media} title={camp.title} />
 
-      <div className="p-5 flex flex-col gap-3 flex-1">
-        <div className="flex justify-between items-start gap-4">
+      <div className="flex flex-1 flex-col gap-3 p-5">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <h3 className="text-lg font-bold text-white truncate">{camp.title}</h3>
-            <p className="text-sm text-white/60 mt-1 line-clamp-2">
+            <h3 className="truncate text-lg font-bold text-white">
+              {camp.title}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-sm text-white/60">
               {camp.description}
             </p>
           </div>
 
-          <div className="text-right text-sm shrink-0">
-            <p className="text-white/90 font-semibold">
-              {raisedAnim.toFixed(4)} / {goalEth.toFixed(4)} ETH
+          <div className="shrink-0 text-right text-sm">
+            <p className="font-semibold text-white/90">
+              {animatedRaised.toFixed(4)} / {goalEth.toFixed(4)} ETH
             </p>
 
-            {/* USD */}
             <p className="text-white/50">
-              {raisedUsd !== null && goalUsd !== null ? (
-                <>
-                  {formatUsd(raisedUsd)} / {formatUsd(goalUsd)}
-                </>
-              ) : (
-                "USD loading…"
-              )}
+              {raisedUsd !== null && goalUsd !== null
+                ? `${formatUsd(raisedUsd)} / ${formatUsd(goalUsd)}`
+                : "USD loading…"}
             </p>
 
-            <p className="text-white/50 mt-1">
+            <p className="mt-1 text-white/50">
               {Math.max(0, Math.min(100, percent))}%
             </p>
           </div>
@@ -249,7 +289,7 @@ export default function CampaignCard({ id, camp }: { id: number; camp: Campaign 
           <span className="text-white/60">
             {daysLeft > 0 ? `${daysLeft} days left` : "0 days left"}
           </span>
-          <span className={statusColor}>{statusLabel}</span>
+          <span className={status.color}>{status.label}</span>
         </div>
       </div>
     </div>

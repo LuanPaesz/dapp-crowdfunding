@@ -1,26 +1,31 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { Copy, Trash2, ShieldCheck, Zap } from "lucide-react";
+import { Copy, ShieldCheck, Trash2, Zap } from "lucide-react";
 
-function truncate(addr?: string) {
-  if (!addr) return "";
-  return addr.slice(0, 6) + "…" + addr.slice(-4);
+type PurpleCardProps = Readonly<{
+  title: string;
+  icon: ReactNode;
+  children: ReactNode;
+}>;
+
+function truncate(address?: string) {
+  if (!address) {
+    return "";
+  }
+
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-/** Reusable purple-glow card (same vibe as your Explore sections) */
-function PurpleCard({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function clearLocalCache() {
+  localStorage.clear();
+  sessionStorage.clear();
+  globalThis.location.reload();
+}
+
+function PurpleCard({ title, icon, children }: PurpleCardProps) {
   return (
     <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-purple-500/15 via-white/6 to-black/25 p-5">
-      {/* Always-on glow */}
-      <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-purple-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-purple-500/25 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -left-20 h-64 w-64 rounded-full bg-fuchsia-500/15 blur-3xl" />
 
       <div className="relative">
@@ -38,12 +43,18 @@ export default function Settings() {
   const { address, chain, isConnected } = useAccount();
   const [copied, setCopied] = useState<string | null>(null);
 
-  const rpcUrl = (import.meta.env.VITE_RPC_URL as string | undefined) ?? "";
+  const rpcUrl = String(import.meta.env.VITE_RPC_URL ?? "");
+
   const safeRpc = useMemo(() => {
-    if (!rpcUrl) return "";
+    if (!rpcUrl) {
+      return "";
+    }
+
     try {
-      const u = new URL(rpcUrl.startsWith("http") ? rpcUrl : `https://${rpcUrl}`);
-      return u.host;
+      const parsedUrl = new URL(
+        rpcUrl.startsWith("http") ? rpcUrl : `https://${rpcUrl}`
+      );
+      return parsedUrl.host;
     } catch {
       return rpcUrl;
     }
@@ -53,34 +64,29 @@ export default function Settings() {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
-      setTimeout(() => setCopied(null), 1200);
-    } catch {
-      // ignore
-    }
-  }
 
-  function clearLocalCache() {
-    localStorage.clear();
-    sessionStorage.clear();
-    window.location.reload();
+      globalThis.setTimeout(() => {
+        setCopied(null);
+      }, 1200);
+    } catch {
+      // ignore clipboard failure
+    }
   }
 
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-purple-500/12 via-white/6 to-black/25 p-6">
-        <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-purple-500/22 blur-3xl" />
+        <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-purple-500/22 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 -right-24 h-72 w-72 rounded-full bg-fuchsia-500/12 blur-3xl" />
         <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-white/60 mt-1">Basic preferences and quick actions for testers.</p>
+        <p className="mt-1 text-white/60">
+          Basic preferences and quick actions for testers.
+        </p>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Connection */}
-        <PurpleCard
-          title="Connection"
-          icon={<ShieldCheck className="w-4 h-4" />}
-        >
-          <div className="text-sm text-white/70 space-y-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <PurpleCard title="Connection" icon={<ShieldCheck className="h-4 w-4" />}>
+          <div className="space-y-2 text-sm text-white/70">
             <div>
               Status:{" "}
               {isConnected ? (
@@ -103,9 +109,8 @@ export default function Settings() {
           </div>
         </PurpleCard>
 
-        {/* RPC helper */}
-        <PurpleCard title="RPC helper" icon={<Zap className="w-4 h-4" />}>
-          <div className="text-sm text-white/70 space-y-3">
+        <PurpleCard title="RPC helper" icon={<Zap className="h-4 w-4" />}>
+          <div className="space-y-3 text-sm text-white/70">
             <div>
               RPC host:{" "}
               <span className="text-white/85">{safeRpc || "Not configured"}</span>
@@ -113,10 +118,11 @@ export default function Settings() {
 
             {rpcUrl ? (
               <button
+                type="button"
                 onClick={() => copy(rpcUrl, "rpc")}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition hover:bg-white/10"
               >
-                <Copy className="w-4 h-4" />
+                <Copy className="h-4 w-4" />
                 {copied === "rpc" ? "Copied!" : "Copy RPC URL"}
               </button>
             ) : (
@@ -127,21 +133,18 @@ export default function Settings() {
           </div>
         </PurpleCard>
 
-        {/* Maintenance */}
-        <PurpleCard
-          title="Maintenance"
-          icon={<Trash2 className="w-4 h-4" />}
-        >
-          <div className="text-sm text-white/70 space-y-3">
-            <div className="text-white/60 text-sm">
+        <PurpleCard title="Maintenance" icon={<Trash2 className="h-4 w-4" />}>
+          <div className="space-y-3 text-sm text-white/70">
+            <div className="text-sm text-white/60">
               If the UI shows stale data, you can clear local cache and reload.
             </div>
 
             <button
+              type="button"
               onClick={clearLocalCache}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm transition hover:bg-white/10"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-4 w-4" />
               Clear cache & reload
             </button>
           </div>

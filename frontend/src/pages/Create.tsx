@@ -1,19 +1,58 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
 import { CircleCheck, CircleX, Info, Sparkles } from "lucide-react";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
-function prettifyError(err: any) {
-  return (
-    err?.shortMessage ||
-    err?.cause?.shortMessage ||
-    err?.details ||
-    err?.cause?.details ||
-    err?.message ||
-    "Transaction failed."
-  );
+function getErrorMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "shortMessage" in error &&
+    typeof error.shortMessage === "string"
+  ) {
+    return error.shortMessage;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "cause" in error &&
+    typeof error.cause === "object" &&
+    error.cause !== null &&
+    "shortMessage" in error.cause &&
+    typeof error.cause.shortMessage === "string"
+  ) {
+    return error.cause.shortMessage;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "details" in error &&
+    typeof error.details === "string"
+  ) {
+    return error.details;
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "cause" in error &&
+    typeof error.cause === "object" &&
+    error.cause !== null &&
+    "details" in error.cause &&
+    typeof error.cause.details === "string"
+  ) {
+    return error.cause.details;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "Transaction failed.";
 }
 
 export default function Create() {
@@ -27,9 +66,7 @@ export default function Create() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goal, setGoal] = useState("0");
-  const [durationDays, setDurationDays] = useState<number>(1);
-
-  // ON-CHAIN metadata (strings)
+  const [durationDays, setDurationDays] = useState(1);
   const [mediaUrl, setMediaUrl] = useState("");
   const [projectLink, setProjectLink] = useState("");
 
@@ -39,26 +76,42 @@ export default function Create() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const pTitle = params.get("title");
-    const pDescription = params.get("description");
-    const pGoal = params.get("goal");
-    const pDeadline = params.get("deadline");
-    const pMedia = params.get("media");
-    const pLink = params.get("externalLink");
 
-    if (pTitle) setTitle(pTitle);
-    if (pDescription) setDescription(pDescription);
-    if (pGoal) setGoal(pGoal);
-    if (pMedia) setMediaUrl(pMedia);
-    if (pLink) setProjectLink(pLink);
+    const presetTitle = params.get("title");
+    const presetDescription = params.get("description");
+    const presetGoal = params.get("goal");
+    const presetDeadline = params.get("deadline");
+    const presetMedia = params.get("media");
+    const presetLink = params.get("externalLink");
 
-    if (pDeadline) {
-      const deadlineNum = Number(pDeadline);
-      if (!Number.isNaN(deadlineNum) && deadlineNum > 0) {
-        const nowSec = Math.floor(Date.now() / 1000);
-        const secs = Math.max(0, deadlineNum - nowSec);
-        const days = Math.max(1, Math.ceil(secs / (60 * 60 * 24)));
-        setDurationDays(days);
+    if (presetTitle) {
+      setTitle(presetTitle);
+    }
+
+    if (presetDescription) {
+      setDescription(presetDescription);
+    }
+
+    if (presetGoal) {
+      setGoal(presetGoal);
+    }
+
+    if (presetMedia) {
+      setMediaUrl(presetMedia);
+    }
+
+    if (presetLink) {
+      setProjectLink(presetLink);
+    }
+
+    if (presetDeadline) {
+      const deadlineNumber = Number(presetDeadline);
+
+      if (!Number.isNaN(deadlineNumber) && deadlineNumber > 0) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const secondsRemaining = Math.max(0, deadlineNumber - nowInSeconds);
+        const daysRemaining = Math.max(1, Math.ceil(secondsRemaining / (60 * 60 * 24)));
+        setDurationDays(daysRemaining);
       }
     }
   }, [location.search]);
@@ -73,8 +126,8 @@ export default function Create() {
     };
   }, [title, description, mediaUrl, projectLink, durationDays]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setErrorMsg(null);
     setInfoMsg(null);
     setTxHash(null);
@@ -94,17 +147,29 @@ export default function Create() {
       return;
     }
 
-    if (!clean.title) return setErrorMsg("Title is required.");
-    if (!clean.description) return setErrorMsg("Description is required.");
+    if (!clean.title) {
+      setErrorMsg("Title is required.");
+      return;
+    }
+
+    if (!clean.description) {
+      setErrorMsg("Description is required.");
+      return;
+    }
 
     let goalWei: bigint;
+
     try {
       goalWei = parseEther(goal);
     } catch {
       setErrorMsg("Goal must be a valid ETH number (e.g., 0.1).");
       return;
     }
-    if (goalWei <= 0n) return setErrorMsg("Goal must be greater than 0.");
+
+    if (goalWei <= 0n) {
+      setErrorMsg("Goal must be greater than 0.");
+      return;
+    }
 
     if (!Number.isFinite(clean.duration) || clean.duration < 1) {
       setErrorMsg("Duration must be at least 1 day.");
@@ -120,7 +185,6 @@ export default function Create() {
       BigInt(clean.duration),
     ] as const;
 
-    // 1) SIMULATE
     try {
       await publicClient.simulateContract({
         address: CROWDFUND_ADDRESS,
@@ -129,12 +193,11 @@ export default function Create() {
         args,
         account: address,
       });
-    } catch (simErr: any) {
-      setErrorMsg(`Simulation failed: ${prettifyError(simErr)}`);
+    } catch (simulationError) {
+      setErrorMsg(`Simulation failed: ${getErrorMessage(simulationError)}`);
       return;
     }
 
-    // 2) SEND (MetaMask)
     try {
       const hash = await writeContractAsync({
         address: CROWDFUND_ADDRESS,
@@ -150,15 +213,14 @@ export default function Create() {
       await publicClient.waitForTransactionReceipt({ hash });
 
       setInfoMsg("Campaign created successfully!");
-
       setTitle("");
       setDescription("");
       setGoal("0");
       setDurationDays(1);
       setMediaUrl("");
       setProjectLink("");
-    } catch (err: any) {
-      setErrorMsg(prettifyError(err));
+    } catch (error) {
+      setErrorMsg(getErrorMessage(error));
     }
   }
 
@@ -168,22 +230,21 @@ export default function Create() {
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/7 to-black/25 p-6">
-      <div className="pointer-events-none absolute -top-28 -left-24 h-72 w-72 rounded-full bg-purple-500/18 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-purple-500/18 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-28 -right-24 h-72 w-72 rounded-full bg-fuchsia-500/12 blur-3xl" />
 
-      <div className="flex flex-col lg:flex-row gap-6 relative">
-        {/* FORM */}
-        <div className="flex-1 rounded-3xl border border-white/10 bg-white/5 p-6 relative overflow-hidden">
-          <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
+      <div className="relative flex flex-col gap-6 lg:flex-row">
+        <div className="relative flex-1 overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-6">
+          <div className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
 
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
-                <Sparkles className="w-3.5 h-3.5" />
+                <Sparkles className="h-3.5 w-3.5" />
                 Create on-chain campaign
               </div>
-              <h2 className="text-2xl font-bold mt-3">Create Campaign</h2>
-              <p className="text-sm text-white/60 mt-1">
+              <h2 className="mt-3 text-2xl font-bold">Create Campaign</h2>
+              <p className="mt-1 text-sm text-white/60">
                 All campaign data is stored on-chain for transparency.
               </p>
             </div>
@@ -194,54 +255,68 @@ export default function Create() {
                   Network: <span className="text-white/70">{chain.name}</span>
                 </>
               ) : (
-                <>Network: <span className="text-white/70">Not selected</span></>
+                <>
+                  Network: <span className="text-white/70">Not selected</span>
+                </>
               )}
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4 text-white mt-6">
+          <form onSubmit={onSubmit} className="mt-6 space-y-4 text-white">
             <div>
               <label className="block text-sm text-white/70">Title</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} className={inputBase} />
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className={inputBase}
+              />
             </div>
 
             <div>
               <label className="block text-sm text-white/70">Description</label>
               <textarea
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className={inputBase + " min-h-[110px] resize-y"}
+                onChange={(event) => setDescription(event.target.value)}
+                className={`${inputBase} min-h-[110px] resize-y`}
               />
             </div>
 
             <div>
-              <label className="block text-sm text-white/70">Media URL (image or YouTube)</label>
+              <label className="block text-sm text-white/70">
+                Media URL (image or YouTube)
+              </label>
               <input
                 value={mediaUrl}
-                onChange={(e) => setMediaUrl(e.target.value)}
+                onChange={(event) => setMediaUrl(event.target.value)}
                 className={inputBase}
                 placeholder="https://..."
               />
-              <p className="text-xs text-white/45 mt-1">Saved on-chain as metadata (string).</p>
+              <p className="mt-1 text-xs text-white/45">
+                Saved on-chain as metadata (string).
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm text-white/70">Project link (GitHub / Website)</label>
+              <label className="block text-sm text-white/70">
+                Project link (GitHub / Website)
+              </label>
               <input
                 value={projectLink}
-                onChange={(e) => setProjectLink(e.target.value)}
+                onChange={(event) => setProjectLink(event.target.value)}
                 className={inputBase}
                 placeholder="https://..."
               />
-              <p className="text-xs text-white/45 mt-1">Saved on-chain as metadata (string).</p>
+              <p className="mt-1 text-xs text-white/45">
+                Saved on-chain as metadata (string).
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-sm text-white/70">Goal (ETH)</label>
                 <input
                   value={goal}
-                  onChange={(e) => setGoal(e.target.value)}
+                  onChange={(event) => setGoal(event.target.value)}
                   className={inputBase}
                   type="number"
                   min="0"
@@ -254,41 +329,41 @@ export default function Create() {
                 <input
                   type="number"
                   value={durationDays}
-                  onChange={(e) => setDurationDays(Number(e.target.value))}
+                  onChange={(event) => setDurationDays(Number(event.target.value))}
                   className={inputBase}
                   min="1"
                 />
               </div>
             </div>
 
-            {errorMsg && (
-              <div className="text-red-200 text-sm bg-red-950/35 border border-red-800/60 rounded-xl px-3 py-2 flex items-start gap-2">
-                <CircleX className="w-4 h-4 mt-0.5" />
+            {errorMsg ? (
+              <div className="flex items-start gap-2 rounded-xl border border-red-800/60 bg-red-950/35 px-3 py-2 text-sm text-red-200">
+                <CircleX className="mt-0.5 h-4 w-4" />
                 <div>{errorMsg}</div>
               </div>
-            )}
+            ) : null}
 
-            {infoMsg && (
-              <div className="text-purple-100 text-sm bg-purple-950/25 border border-purple-700/30 rounded-xl px-3 py-2 flex items-start gap-2">
-                <Info className="w-4 h-4 mt-0.5" />
+            {infoMsg ? (
+              <div className="flex items-start gap-2 rounded-xl border border-purple-700/30 bg-purple-950/25 px-3 py-2 text-sm text-purple-100">
+                <Info className="mt-0.5 h-4 w-4" />
                 <div>{infoMsg}</div>
               </div>
-            )}
+            ) : null}
 
-            {txHash && (
-              <div className="text-green-200 text-sm bg-green-950/25 border border-green-800/40 rounded-xl px-3 py-2 break-all flex items-start gap-2">
-                <CircleCheck className="w-4 h-4 mt-0.5" />
+            {txHash ? (
+              <div className="flex items-start gap-2 break-all rounded-xl border border-green-800/40 bg-green-950/25 px-3 py-2 text-sm text-green-200">
+                <CircleCheck className="mt-0.5 h-4 w-4" />
                 <div>
                   Transaction: <span className="text-green-100">{txHash}</span>
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={isPending}
-                className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 transition shadow-[0_0_22px_rgba(139,92,246,0.25)]"
+                className="rounded-xl bg-purple-600 px-4 py-2 transition shadow-[0_0_22px_rgba(139,92,246,0.25)] hover:bg-purple-700 disabled:bg-purple-600/50"
               >
                 {isPending ? "Creating..." : "Create"}
               </button>
@@ -296,7 +371,7 @@ export default function Create() {
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 transition"
+                className="rounded-xl border border-white/10 bg-white/10 px-4 py-2 transition hover:bg-white/15"
               >
                 Cancel
               </button>
@@ -304,19 +379,19 @@ export default function Create() {
           </form>
         </div>
 
-        {/* TIPS */}
         <aside className="w-full lg:w-[360px]">
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 relative overflow-hidden">
-            <div className="pointer-events-none absolute -top-20 -left-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
+          <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-5">
+            <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
             <div className="text-sm font-semibold">Tips for a great campaign</div>
-            <ul className="mt-3 text-sm text-white/70 space-y-2 list-disc pl-5">
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-white/70">
               <li>Use a clear title (what you’re building + why it matters).</li>
               <li>Add a media link (image/YouTube) to improve trust.</li>
               <li>Set a realistic goal and deadline for your target audience.</li>
               <li>Include a GitHub/website link for credibility and verification.</li>
             </ul>
             <div className="mt-4 text-xs text-white/50">
-              Note: campaigns may require admin approval before appearing publicly (depending on configuration).
+              Note: campaigns may require admin approval before appearing publicly
+              (depending on configuration).
             </div>
           </div>
         </aside>

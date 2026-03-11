@@ -10,7 +10,9 @@
     "test": "npx hardhat test",
     "deploy": "npx hardhat ignition deploy ignition/modules/CrowdfundModule.ts --network localhost --deployment-id cf-local-1",
     "copy-abi": "node ./scripts/sync-abi.cjs",
-    "build:frontend": "npm run compile && npm run copy-abi && cd ../frontend && npm run build"
+    "build:frontend": "npm run compile && npm run copy-abi && cd ../frontend && npm run build",
+    "lint:sol": "solhint \"contracts/**/*.sol\"",
+    "lint:sol:fix": "solhint \"contracts/**/*.sol\" --fix"
   },
   "keywords": [
     "hardhat",
@@ -46,8 +48,8 @@
     "ethers": "^6.15.0",
     "hardhat": "^2.26.0",
     "hardhat-gas-reporter": "^2.2.1",
-    "solhint": "3.6.2",
-    "solidity-coverage": "^0.8.8",
+    "solhint": "^3.6.2",
+    "solidity-coverage": "^0.8.17",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.1",
     "typescript": "^5.4.5"
