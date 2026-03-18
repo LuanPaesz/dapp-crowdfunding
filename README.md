@@ -179,17 +179,6 @@ git add .
 git commit -m "chore: update crowdfund bundle after VM redeploy"
 git push
 ```
-
----
-
-### Option B – Live Demo
-
-A deployed version of the frontend is available at:
-
-https://blockfund-frontend-six.vercel.app
-
-Note: the live frontend depends on the VM RPC endpoint and the latest synced `crowdfund.bundle.json`. If the VM contract is redeployed and the bundle is not updated, contract reads may fail.
-
 ---
 
 ## 🦊 MetaMask Setup
