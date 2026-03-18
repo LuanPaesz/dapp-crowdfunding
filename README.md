@@ -33,19 +33,21 @@ The platform allows campaign creators to raise funds while ensuring that:
 
 # 🧱 Architecture
 
+```
 dapp-crowdfunding/
 │
-├── frontend/ # React + Vite application
-│ └── src/lib/contract.ts # Smart contract ABI and address
+├── frontend/                     # React + Vite application
+│   └── src/lib/contract.ts       # Smart contract ABI and address
 │
-├── smart-contract/ # Solidity + Hardhat project
-│ ├── contracts/Crowdfunding.sol
-│ ├── scripts/sync-abi.cjs
-│ └── hardhat.config.ts
+├── smart-contract/               # Solidity + Hardhat project
+│   ├── contracts/Crowdfunding.sol
+│   ├── scripts/sync-abi.cjs
+│   └── hardhat.config.ts
 │
-├── docker-compose.yml # Containerized environment
-├── Jenkinsfile # CI/CD pipeline configuration
+├── docker-compose.yml            # Containerized environment
+├── Jenkinsfile                   # CI/CD pipeline configuration
 └── README.md
+```
 
 
 The system follows a **decentralized architecture** where:
@@ -69,51 +71,137 @@ Blockchain → stores transactions and campaign data
 
 ---
 
-## 🚀 Quick Start (Run the Project)
+## ⚠️ Important Note on Running the Project
 
-Run the following commands in your terminal:
+This project uses a VM-hosted blockchain environment for smart contract execution.
+
+As a result, running the frontend locally using only:
 
 ```bash
-# Install frontend dependencies
-cd frontend
 npm install
-
-# Install smart contract dependencies
-cd ../smart-contract
-npm install
-
-# Compile smart contracts
-npx hardhat compile
-
-# Run smart contract tests
-npx hardhat test
-
-# Start a local blockchain network (optional)
-npx hardhat node
-
-# Start the frontend application
-cd ../frontend
 npm run dev
 ```
 
-The application will start at:
+may not fully work unless the smart contract deployment and bundle are correctly configured.
 
+### Recommended Evaluation Method
+
+The recommended way to evaluate the project is:
+
+1. Use the live deployed frontend
+
+2. Review the source code and tests in this repository
+
+3. (Optional) Follow the full deployment workflow described in this README
+
+### Why this is required
+
+The frontend depends on:
+
+- a deployed smart contract
+- a running RPC endpoint
+- a synchronized deployment bundle (ABI + contract address)
+
+If these components are not aligned, contract interactions may fail.
+
+This design reflects a realistic deployment scenario where smart contract infrastructure is hosted separately from the client application.
+
+## 🚀 Running the Project
+
+This project relies on a VM-hosted blockchain environment for contract deployment, while the frontend is typically run locally on the host machine.
+
+### Option A – Standard project workflow (VM + local frontend)
+
+#### 1. Connect to the VM
+
+SSH into the VM where the blockchain environment is hosted.
+
+#### 2. Check Nginx
+
+```bash
+sudo nginx -t
+sudo systemctl restart nginx
 ```
+
+#### 3. Restart the Hardhat process
+
+```bash
+pm2 list
+pm2 restart hardhat --update-env
+pm2 logs hardhat --lines 30
+```
+
+#### 4. Recompile and redeploy the smart contract in the VM
+
+```bash
+cd ~/blockfund/dapp-crowdfunding/smart-contract
+npx hardhat compile
+npx hardhat ignition deploy ignition/modules/CrowdfundModule.cjs --network localhost --reset
+```
+
+#### 5. Generate the frontend deployment bundle
+
+```bash
+node scripts/export-frontend.cjs
+```
+
+#### 6. Copy the updated bundle to the local frontend project
+
+Example command used on Windows PowerShell:
+
+```bash
+scp -i C:\Users\luanb\BlockFund\blockfund-key.pem ubuntu@13.53.105.108:/home/ubuntu/blockfund/dapp-crowdfunding/frontend/src/lib/crowdfund.bundle.json .\frontend\src\lib\crowdfund.bundle.json
+```
+
+#### 7. Start the frontend locally
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend will usually start at:
+
+```text
 http://localhost:5173
 ```
+
+If that port is already in use, Vite may automatically switch to another port such as `5174`.
+
+#### 8. Optional: update the deployed frontend
+
+After copying the new bundle, commit and push the updated file so that Vercel uses the latest contract deployment.
+
+```bash
+git add frontend/src/lib/crowdfund.bundle.json
+git add .
+git commit -m "chore: update crowdfund bundle after VM redeploy"
+git push
+```
+
+---
+
+### Option B – Live Demo
+
+A deployed version of the frontend is available at:
+
+https://blockfund-frontend-six.vercel.app
+
+Note: the live frontend depends on the VM RPC endpoint and the latest synced `crowdfund.bundle.json`. If the VM contract is redeployed and the bundle is not updated, contract reads may fail.
 
 ---
 
 ## 🦊 MetaMask Setup
 
-To interact with the local blockchain network configure MetaMask with the following network:
+To interact with the application, MetaMask is required.
 
-Network Name: Hardhat Local  
-RPC URL: http://127.0.0.1:8545  
-Chain ID: 31337  
-Currency Symbol: ETH  
+Depending on the environment:
 
-You may import one of the Hardhat test accounts to simulate transactions.
+- For local testing: use Hardhat Local network (Chain ID 31337)
+- For live demo: no manual setup is required if using the deployed frontend
+
+Note: the live application connects to a remote RPC endpoint configured in the frontend.
 
 ---
 
