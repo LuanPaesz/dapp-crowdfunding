@@ -33,28 +33,31 @@ The platform allows campaign creators to raise funds while ensuring that:
 
 # 🧱 Architecture
 
+```mermaid
+flowchart LR
+
+User["User"]
+MetaMask["MetaMask Wallet"]
+Frontend["Frontend (React + Vite)"]
+RPC["RPC Endpoint (VM / Nginx)"]
+Contract["Smart Contract (Solidity)"]
+Blockchain["Blockchain"]
+
+User --> Frontend
+Frontend --> MetaMask
+MetaMask --> RPC
+RPC --> Contract
+Contract --> Blockchain
+
+Blockchain --> Contract
+Contract --> RPC
+RPC --> Frontend
+Frontend --> User
 ```
-dapp-crowdfunding/
-│
-├── frontend/                     # React + Vite application
-│   └── src/lib/contract.ts       # Smart contract ABI and address
-│
-├── smart-contract/               # Solidity + Hardhat project
-│   ├── contracts/Crowdfunding.sol
-│   ├── scripts/sync-abi.cjs
-│   └── hardhat.config.ts
-│
-├── docker-compose.yml            # Containerized environment
-├── Jenkinsfile                   # CI/CD pipeline configuration
-└── README.md
-```
 
+This diagram illustrates the high-level architecture of the BlockFund platform.
 
-The system follows a **decentralized architecture** where:
-
-Frontend → interacts with smart contracts  
-Smart Contract → executes crowdfunding logic  
-Blockchain → stores transactions and campaign data
+The frontend interacts with the blockchain through a remote RPC endpoint hosted in a VM environment. Smart contracts handle all crowdfunding logic, while the blockchain ensures transparency and immutability of transactions. User interactions are performed through a browser interface connected via MetaMask.
 
 ---
 
