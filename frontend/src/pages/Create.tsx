@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { parseEther } from "viem";
-import { CircleCheck, CircleX, Info, Sparkles } from "lucide-react";
+import {
+  CircleCheck,
+  CircleX,
+  ExternalLink,
+  Info,
+  Sparkles,
+} from "lucide-react";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 
 function getErrorMessage(error: unknown): string {
@@ -73,6 +79,9 @@ export default function Create() {
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  const evaluationUrl =
+    "https://docs.google.com/forms/d/e/1FAIpQLSdUXU8sjCbrkCfOAsauAGWz1RuvxNoVl820pXvoxypvzt_RSA/viewform?usp=sharing&ouid=114785910683588446101";
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -379,7 +388,7 @@ export default function Create() {
           </form>
         </div>
 
-        <aside className="w-full lg:w-[360px]">
+        <aside className="w-full space-y-4 lg:w-[360px]">
           <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 p-5">
             <div className="pointer-events-none absolute -left-20 -top-20 h-56 w-56 rounded-full bg-purple-500/18 blur-3xl" />
             <div className="text-sm font-semibold">Tips for a great campaign</div>
@@ -393,6 +402,52 @@ export default function Create() {
               Note: campaigns may require admin approval before appearing publicly
               (depending on configuration).
             </div>
+          </div>
+
+          <div className="rounded-3xl border border-purple-500/20 bg-purple-500/10 p-5">
+            <div className="text-sm font-semibold">Create page tutorial</div>
+            <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/75">
+              <li>Fill in the campaign title.</li>
+              <li>Write a short description explaining your project.</li>
+              <li>Add a media URL and a project link.</li>
+              <li>Set the funding goal and campaign duration.</li>
+              <li>Click <b>Create</b> and confirm the transaction in MetaMask.</li>
+            </ol>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="text-xs uppercase tracking-wide text-white/45">
+                Next step
+              </div>
+              <div className="mt-1 text-sm text-white/75">
+                After creating a campaign, go to the campaign list or detail page and
+                test the contribution flow.
+              </div>
+              <div className="mt-3">
+                <Link
+                  to="/explore"
+                  className="inline-flex items-center gap-2 rounded-xl border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-sm transition hover:bg-purple-500/15"
+                >
+                  Go to contribution step
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-green-500/20 bg-green-500/10 p-5">
+            <div className="text-sm font-semibold">Final website evaluation</div>
+            <p className="mt-2 text-sm text-white/75">
+              After you finish creating and contributing, you can complete the final
+              site evaluation form.
+            </p>
+            <a
+              href={evaluationUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm transition hover:bg-green-500/15"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open evaluation form
+            </a>
           </div>
         </aside>
       </div>

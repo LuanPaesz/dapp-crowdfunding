@@ -7,6 +7,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
+import { ExternalLink } from "lucide-react";
 import { CROWDFUND_ABI, CROWDFUND_ADDRESS } from "../lib/contract";
 import CampaignUpdates from "../components/CampaignUpdates";
 import { formatUsd, useEthUsdPrice } from "../lib/pricing";
@@ -804,6 +805,9 @@ function CampaignSidebar({
   onRefund,
   onWithdraw,
 }: CampaignSidebarProps) {
+  const evaluationUrl =
+    "https://docs.google.com/forms/d/e/1FAIpQLSdUXU8sjCbrkCfOAsauAGWz1RuvxNoVl820pXvoxypvzt_RSA/viewform?usp=sharing&ouid=114785910683588446101";
+
   return (
     <aside className="space-y-4">
       <div className="card card-hover">
@@ -882,6 +886,17 @@ function CampaignSidebar({
         </div>
       </div>
 
+      <div className="rounded-3xl border border-purple-500/20 bg-purple-500/10 p-4">
+        <div className="text-sm font-semibold">Contribution tutorial</div>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/75">
+          <li>Check the campaign title, goal and current amount raised.</li>
+          <li>Enter the amount you want to contribute in ETH.</li>
+          <li>Click <b>Contribute</b>.</li>
+          <li>Confirm the transaction in MetaMask.</li>
+          <li>Wait for the contribution to appear in the campaign data.</li>
+        </ol>
+      </div>
+
       <div className="grid grid-cols-1 gap-3">
         <StatCard
           label="Backers (estimated)"
@@ -898,10 +913,7 @@ function CampaignSidebar({
           sub={avgUsd !== null ? formatUsd(avgUsd) : undefined}
         />
 
-        <StatCard
-          label="Reports"
-          value={String(Number(campaign.reports))}
-        />
+        <StatCard label="Reports" value={String(Number(campaign.reports))} />
 
         {myTxs.length > 0 ? (
           <div className="card">
@@ -920,6 +932,23 @@ function CampaignSidebar({
             </div>
           </div>
         ) : null}
+      </div>
+
+      <div className="rounded-3xl border border-green-500/20 bg-green-500/10 p-4">
+        <div className="text-sm font-semibold">Final step: site evaluation</div>
+        <p className="mt-2 text-sm text-white/75">
+          You have completed the website evaluation flow. Now you can evaluate the
+          platform using the form below.
+        </p>
+        <a
+          href={evaluationUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm transition hover:bg-green-500/15"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Open evaluation form
+        </a>
       </div>
     </aside>
   );
@@ -971,7 +1000,6 @@ export default function CampaignDetail() {
 
   const myContribution = (myContributionData as bigint | undefined) ?? 0n;
 
-  // ✅ Hooks must be called before any conditional return
   const {
     backersCount,
     avgContributionEth,

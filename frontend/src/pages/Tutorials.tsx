@@ -21,8 +21,13 @@ export default function Tutorials() {
 
   const chainId = 31337;
 
+  const metamaskUrl = "https://metamask.io/download/";
+
   const formBase =
     "https://docs.google.com/forms/d/e/1FAIpQLSf-SiMM8qUvwSUEHOaiXOTCVDPsN3F6BRUZ00-MeJIl6-vNqw/viewform";
+
+  const finalEvaluationUrl =
+    "https://docs.google.com/forms/d/e/1FAIpQLSdUXU8sjCbrkCfOAsauAGWz1RuvxNoVl820pXvoxypvzt_RSA/viewform?usp=sharing&ouid=114785910683588446101";
 
   const entryWallet = "entry.457660299";
   const entryName = "entry.1214837844";
@@ -98,6 +103,18 @@ export default function Tutorials() {
           Add the BlockFund test network to MetaMask using the RPC below.
         </div>
 
+        <div className="mt-4 flex flex-wrap gap-2">
+          <a
+            href={metamaskUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-sm transition hover:bg-purple-500/15"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Install MetaMask
+          </a>
+        </div>
+
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-xs text-white/50">RPC URL</div>
@@ -129,7 +146,9 @@ export default function Tutorials() {
         </div>
 
         <ol className="mt-4 list-decimal space-y-2 pl-5">
-          <Step>Install MetaMask (Chrome/Brave/Edge) and create a wallet.</Step>
+          <Step>
+            Install MetaMask using the direct link above and create your wallet.
+          </Step>
           <Step>
             Open MetaMask → <b>Settings</b> → <b>Networks</b> → <b>Add network</b>.
           </Step>
@@ -247,6 +266,15 @@ export default function Tutorials() {
             Your campaign will appear publicly when approved (if approval is enabled).
           </Step>
         </ol>
+
+        <div className="mt-4">
+          <Link
+            to="/create"
+            className="inline-flex items-center gap-2 rounded-xl border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-sm transition hover:bg-purple-500/15"
+          >
+            Go to Create page
+          </Link>
+        </div>
       </div>
 
       <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/6 to-black/25 p-6">
@@ -261,6 +289,35 @@ export default function Tutorials() {
           </Step>
           <Step>After confirmation, the raised amount updates automatically.</Step>
         </ol>
+
+        <div className="mt-4">
+          <Link
+            to="/explore"
+            className="inline-flex items-center gap-2 rounded-xl border border-purple-500/25 bg-purple-500/10 px-3 py-2 text-sm transition hover:bg-purple-500/15"
+          >
+            Go to Explore page
+          </Link>
+        </div>
+      </div>
+
+      <div className="relative overflow-hidden rounded-3xl border border-green-500/20 bg-gradient-to-b from-green-500/10 to-black/25 p-6">
+        <h2 className="text-lg font-semibold">5) Final step: evaluate the website</h2>
+        <p className="mt-2 text-sm text-white/70">
+          You have completed the website evaluation flow. Now please fill in the
+          final feedback form.
+        </p>
+
+        <div className="mt-4">
+          <a
+            href={finalEvaluationUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm transition hover:bg-green-500/15"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Open evaluation form
+          </a>
+        </div>
       </div>
     </div>
   );
